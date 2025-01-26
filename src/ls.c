@@ -52,7 +52,7 @@ size_t dir_contents(const char* dir) {
 		assert(_!=-1); // in theory stat should not fail here since the file exists: if it does fail there is programmer error involved
 		#pragma GCC diagnostic pop
 		if(!S_ISDIR(st.st_mode)) result += st.st_size;
-	} return st.st_size;
+	} closedir(dfd); return st.st_size;
 }
 
 #define STARTING_LEN 25
@@ -145,6 +145,7 @@ int parse_arguments(const int argc, char** argv) {
 		} else if(!strcmp(argv[i], "-U") || !strcmp(argv[i], "--unsorted")) {
 			args |= unsorted;
 		} else {
+			// FIXME BUT I DONT REALLY CARE FIXME: this causes segfault on dev build and only dev build //
 			// for some reason we need 2 seperate buffers, and I have no clue why //
 			char humanreadable_arg[strlen(argv[i])] = {}; char hr_arg[strlen(argv[i])] = {};
 			if(!strcmp(strncpy(humanreadable_arg, argv[i], 17), "--human-readable=")) {
@@ -169,10 +170,45 @@ int parse_arguments(const int argc, char** argv) {
 	return dir_argc;
 }
 
-// TODO:
-// float simplified_fsize(const size_t largest_fsize) {
-// 	
-// }
+#define NEW_UNIT(old_unit) switch(old_unit) { \
+	case 'K': \
+		old_unit = 'M'; \
+		break; \
+	case 'M': \
+		old_unit = 'G'; \
+		break; \
+	case 'G': \
+		old_unit = 'T'; \
+		break; \
+	case 'T': \
+		old_unit = 'P'; \
+		break; \
+	default: \
+		old_unit = 'K'; \
+}
+
+// i hate even simple conversion math //
+char simplified_fsize(size_t fsize, float* readable_fsize) {
+	enum arg_options opt;
+	*readable_fsize = 0;
+	char unit = 0;
+	if(fsize<1000) {
+		*readable_fsize = (float)fsize;
+	} else if(args & size_bin) {
+		while(fsize>1048576) {
+			fsize >>= 10;
+			NEW_UNIT(unit);
+		} *readable_fsize = (float)fsize / 1024;
+		NEW_UNIT(unit);
+	} else {
+		while(fsize>100000) {
+			fsize /= 10;
+			NEW_UNIT(unit);
+		} *readable_fsize = (float)fsize / 10;
+		NEW_UNIT(unit);
+	}
+	return unit;
+}
 
 void list_files(const struct file* files, const unsigned int longest_fdescriptor, const size_t fcount, const struct winsize termsize, bool (*condition)(mode_t)) {
 	#ifndef NDEBUG
@@ -197,25 +233,42 @@ void list_files(const struct file* files, const unsigned int longest_fdescriptor
 		} escape_code(stdout, BOLD);
 		fdescriptor += printf("%s ", files[i].name);
 		escape_code(stdout, RESET);
-		if(!(args & size_none)) {
+		// comment in `get_longest_fdescriptor(uchar, size_t)` //
+		if(args & size_si) {
 			if(is_dir) {
 				if(args & dir_conts) {
+					fdescriptor += printf("(Contains ");
 					if(args & size_bytes) {
-						fdescriptor += printf("(Contains %lu B) ", files[i].size);
-					}/* else if(args & size_hr) {
-						
+						fdescriptor += printf("%lu B)", files[i].size);
 					} else {
-						
-					}*/	
+						float hr_size = 0;
+						char unit = simplified_fsize(files[i].size, &hr_size);
+						// FIXME
+						if(unit==0) {
+							fdescriptor += printf("%.1f B) ", hr_size);
+						} else if(args & size_bin) {
+							fdescriptor += printf("%.1f %ciB) ", hr_size, unit);
+						} else {
+							fdescriptor += printf("%.1f %cB) ", hr_size, unit);
+						}
+					}	
 				}
 			} else {
+				fdescriptor += printf("(");
 				if(args & size_bytes) {
-					fdescriptor += printf("(%lu B) ", files[i].size);
-				}/* else if(args & size_hr) {
-					
+					fdescriptor += printf("%lu B)", files[i].size);
 				} else {
-					
-				}*/
+					float hr_size = 0;
+					char unit = simplified_fsize(files[i].size, &hr_size);
+					// FIXME
+					if(unit==0) {
+						fdescriptor += printf("%.1f B) ", hr_size);
+					} else if(args & size_bin) {
+						fdescriptor += printf("%.1f %ciB) ", hr_size, unit);
+					} else {
+						fdescriptor += printf("%.1f %cB) ", hr_size, unit);
+					}
+				}
 			}
 		}
 		
@@ -229,21 +282,29 @@ void list_files(const struct file* files, const unsigned int longest_fdescriptor
 	}
 }
 
-unsigned int get_longest_fdescriptor(const unsigned longest_fname, const size_t largest_fsize) {
+unsigned int get_longest_fdescriptor(const unsigned char longest_fname, const size_t largest_fsize) {
 	enum arg_options opt;
 	unsigned int result = ((unsigned int)longest_fname)+1;
-	if(1/*args & size_bytes*/) {
+	if(args & size_bytes) {
 		// https://stackoverflow.com/a/6655756 //
-		result += floor(log10(largest_fsize))+1;
+		result += floor(log10(largest_fsize))+1; // if I could get this equation to auctually be right then I'd like to use it to speed up `simplified_fsize(size_t, float*)`
 		#ifndef NDEBUG
 		printf("The largest file %lu bytes. the equation from pulled from our as- brain says thats %u base10 numbers.\n", largest_fsize, result-((unsigned int)longest_fname)+1);
 		#endif
-	} /*else if(args & size_hr) { // these are commented out until `float simplified_fsize(size_t)` is working
-		
-	} else if(args & size_si) {
-
-	}*/
-	if(!(args & size_none)) {
+	} else {
+		float hr_size = 0;
+		simplified_fsize(largest_fsize, &hr_size);
+		char largest_size[25]; // somewhere around this i didn't do the math, but shouldn't overflow //
+		// FIXME
+		if(args & size_bin) {
+			result += sprintf(largest_size, "%.1f XiB", hr_size);
+		} else {
+			result += sprintf(largest_size, "%.1f XB", hr_size);	
+		}
+	}
+	
+	// si is 0b11 << 4. for some reason !size_none breaks shit? //
+	if(args & size_si) {
 		result += /*( ) */4;
 		if(args & dir_conts) result += /*Contains */9;
 		if(args & size_bytes) result += 1;
@@ -285,7 +346,7 @@ int main(int argc, char** argv) {
 		} if(argv[i][0]=='-') {
 			continue;
 		}
-		if(argv[i][strlen(argv[i])-1]=='/') argv[i][strlen(argv[i])-1] = '\0';
+		if(argv[i][strlen(argv[i])-1]=='/' && strlen(argv[i])!=1) argv[i][strlen(argv[i])-1] = '\0';
 
 		struct stat st;
 		if(stat(argv[i], &st)==-1) {
