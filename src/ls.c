@@ -6,23 +6,57 @@
 #include <assert.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
+#include <math.h>
 #include "colors.h"
+// TODO: change EVERY occurence of ANSI colors being used in printf or fprintf to stop and use  `escape_code(FILE*, char*)` (`escape_code(FILE*, char*)` will use `isatty(int)`) //
 
+
+// the ENTIRE reason for this is jsut cuz i thought itd be unique and wanted to see if i could do it //
+// it turned out to be not that bad and I auctually quite liked using it //
 unsigned short args = 0b0;
 enum arg_options {
+	// booleans //
 	dot_dirs = 0b1,
 	dot_files = 0b10,
 	unsorted = 0b100,
+	no_nerdfonts = 0b1000,
+	fpermissions = 0b1000000,
+	dir_conts = 0b10000000,
+	// u2 int //
+	size_none = 0b000000,
+	size_bytes = 0b010000,
+	size_bin = 0b100000,
+	size_si = 0b110000,
 };
 
 struct file {
 	char name[256];
-	size_t size;
+	long int size;
 	mode_t stat;
 };
 
+size_t dir_contents(const char* dir) {
+	DIR* dfd = opendir(dir);
+	if(!dfd) {
+		escape_code(stderr, RED);
+		fprintf(stderr, "Failed to check the size of \"" BLUE "%s" RED "\". (Could not open directory!)\n", dir);
+		return 0;
+	} size_t result = 0;
+	struct stat st; struct dirent* dp;
+	char true_fname[strlen(dir)+257] = {};
+	while((dp=readdir(dfd))!=NULL) {
+		sprintf(true_fname, "%s/%s", dir, dp->d_name);
+		#pragma GCC diagnostic ignored "-Wunused-variable"
+		#pragma GCC diagnostic push
+		int _ = stat(true_fname, &st);
+		assert(_!=-1); // in theory stat should not fail here since the file exists: if it does fail there is programmer error involved
+		#pragma GCC diagnostic pop
+		if(!S_ISDIR(st.st_mode)) result += st.st_size;
+	} return st.st_size;
+}
+
 #define STARTING_LEN 25
-void* query_files(const char* dir, unsigned char* longest_fname,size_t* fcount) {
+struct file* query_files(const char* dir, unsigned char* longest_fname, long int* largest_fsize, size_t* fcount) {
 	DIR* dfd = opendir(dir);
 	if(!dfd) {
 		escape_code(stderr, RED);
@@ -34,9 +68,9 @@ void* query_files(const char* dir, unsigned char* longest_fname,size_t* fcount) 
 		fprintf(stderr, "Failed to query files! (memory allocation failure!)\n" RESET);
 		closedir(dfd);
 		return NULL;
-	}
+	} *largest_fsize = 0; *longest_fname = 0;
 	
-	char true_fname[strlen(dir)+256]; 
+	char true_fname[strlen(dir)+257] = {}; 
  	struct stat st; struct dirent* dp;
  	size_t i;
 	for(i=0;(dp=readdir(dfd))!=NULL;++i) {
@@ -65,7 +99,13 @@ void* query_files(const char* dir, unsigned char* longest_fname,size_t* fcount) 
 		#pragma GCC diagnostic pop
 		
 		files[i].stat = st.st_mode;
-		files[i].size = st.st_size;
+		if(!S_ISDIR(st.st_mode)) {
+			files[i].size = st.st_size;
+		} else {
+			files[i].size = dir_contents(true_fname);
+		}
+		if(st.st_size > *largest_fsize) *largest_fsize = st.st_size;
+
 		strcpy(files[i].name, dp->d_name);
 		unsigned char fname = (unsigned char)strlen(dp->d_name);
 		if(fname > *longest_fname) *longest_fname = fname;
@@ -76,8 +116,12 @@ void* query_files(const char* dir, unsigned char* longest_fname,size_t* fcount) 
 	return files;
 }
 
+// inline void print_help(void) {
+// 	
+// }
+
 // returns the amount of auctual non-argument entires there are so we can just skip past em //
-int parse_arguments(int argc, char** argv) {
+int parse_arguments(const int argc, char** argv) {
 	int dir_argc = 0;
 	enum arg_options arg;
 	for(int i=0;i<argc;++i) {
@@ -87,12 +131,36 @@ int parse_arguments(int argc, char** argv) {
 		}
 		// TODO: hashmap? //
 		if(!strcmp(argv[i], "-a") || !strcmp(argv[i], "--all")) {
-			args = args | dot_dirs | dot_files;
+			args |= dot_dirs | dot_files;
 		} else if(!strcmp(argv[i], "-A") || !strcmp(argv[i], "--almost-all")) {
-			args = args | dot_files;
+			args |= dot_files;
 		} else if(!strcmp(argv[i], "-d") || !strcmp(argv[i], "--dot-dirs")) {
-			args = args | dot_dirs;
+			args |= dot_dirs;
+		} else if(!strcmp(argv[i], "-nf") || !strcmp(argv[i], "--no-nerdfonts")) {
+			args |= no_nerdfonts;
+		} else if(!strcmp(argv[i], "-c") || !strcmp(argv[i], "--dir-contents")) {
+			args |= dir_conts;
+		} else if(!strcmp(argv[i], "-hr") || !strcmp(argv[i], "--human-readable")) {
+			// TODO: check next argument //
+		} else if(!strcmp(argv[i], "-U") || !strcmp(argv[i], "--unsorted")) {
+			args |= unsorted;
 		} else {
+			// for some reason we need 2 seperate buffers, and I have no clue why //
+			char humanreadable_arg[strlen(argv[i])] = {}; char hr_arg[strlen(argv[i])] = {};
+			if(!strcmp(strncpy(humanreadable_arg, argv[i], 17), "--human-readable=")) {
+				// atoi can fail here but it returns with 0 so if your wrong we assume default //
+				unsigned int val =(unsigned)atoi(strncpy(humanreadable_arg, argv[i]+17, 1));
+				if(val <= 3) {
+					args |= (val << 4);
+				}
+				continue;
+			} else if(!strcmp(strncpy(hr_arg, argv[i], 4), "-hr=")) {
+				unsigned int val = (unsigned)atoi(strncpy(hr_arg, argv[i]+4, 1));
+				if(val <= 3) {
+					args |= (val << 4);
+				}
+				continue;
+			}
 			escape_code(stderr, YELLOW);
 			fprintf(stderr, "\"%s\" is not a valid argument!\n" RESET, argv[i]);
 			exit(1);
@@ -101,18 +169,56 @@ int parse_arguments(int argc, char** argv) {
 	return dir_argc;
 }
 
-void list_files(const struct file* files, const unsigned int longest_fdescriptor, const size_t fcount, const struct winsize termsize) {
+// TODO:
+// float simplified_fsize(const size_t largest_fsize) {
+// 	
+// }
+
+void list_files(const struct file* files, const unsigned int longest_fdescriptor, const size_t fcount, const struct winsize termsize, bool (*condition)(mode_t)) {
 	#ifndef NDEBUG
 	printf("args: %b\n", args & dot_dirs);
 	#endif
 	enum arg_options opt;
 	const size_t start = (args & dot_dirs) ? 0 : 2;
-	unsigned char files_printed = 0;
+	static unsigned char files_printed = 0;
 	unsigned int files_per_row =  termsize.ws_col / longest_fdescriptor;
 	for(size_t i=start;i<fcount;++i) {
-		if((files[i].name[0] == '.' && !(args & dot_files)) && (strcmp(files[i].name, ".") && strcmp(files[i].name, ".."))) {
+		if(((files[i].name[0] == '.' && !(args & dot_files)) && (strcmp(files[i].name, ".") && strcmp(files[i].name, ".."))) || condition(files[i].stat)) {
 			continue;
-		} unsigned int fdescriptor = printf("%s ", files[i].name);
+		} unsigned int fdescriptor = 0;
+		bool is_dir = S_ISDIR(files[i].stat);
+		if(is_dir) escape_code(stdout, BLUE);
+		if(!(args & no_nerdfonts)) {
+			if(is_dir) {
+				fdescriptor += printf(" ");
+			} else {
+				fdescriptor += printf(" ");
+			}
+		} escape_code(stdout, BOLD);
+		fdescriptor += printf("%s ", files[i].name);
+		escape_code(stdout, RESET);
+		if(!(args & size_none)) {
+			if(is_dir) {
+				if(args & dir_conts) {
+					if(args & size_bytes) {
+						fdescriptor += printf("(Contains %lu B) ", files[i].size);
+					}/* else if(args & size_hr) {
+						
+					} else {
+						
+					}*/	
+				}
+			} else {
+				if(args & size_bytes) {
+					fdescriptor += printf("(%lu B) ", files[i].size);
+				}/* else if(args & size_hr) {
+					
+				} else {
+					
+				}*/
+			}
+		}
+		
 		for(int i=longest_fdescriptor-fdescriptor;i>0;--i) {
 			putchar(' ');
 		} files_printed++;
@@ -120,21 +226,56 @@ void list_files(const struct file* files, const unsigned int longest_fdescriptor
 		if(files_printed >= files_per_row) {
 			putchar('\n'); files_printed = 0;
 		}
-	} putchar('\n');
+	}
 }
 
+unsigned int get_longest_fdescriptor(const unsigned longest_fname, const size_t largest_fsize) {
+	enum arg_options opt;
+	unsigned int result = ((unsigned int)longest_fname)+1;
+	if(1/*args & size_bytes*/) {
+		// https://stackoverflow.com/a/6655756 //
+		result += floor(log10(largest_fsize))+1;
+		#ifndef NDEBUG
+		printf("The largest file %lu bytes. the equation from pulled from our as- brain says thats %u base10 numbers.\n", largest_fsize, result-((unsigned int)longest_fname)+1);
+		#endif
+	} /*else if(args & size_hr) { // these are commented out until `float simplified_fsize(size_t)` is working
+		
+	} else if(args & size_si) {
+
+	}*/
+	if(!(args & size_none)) {
+		result += /*( ) */4;
+		if(args & dir_conts) result += /*Contains */9;
+		if(args & size_bytes) result += 1;
+		else if(args & size_si) result += 2;
+		else if(args & size_bin) result += 3;
+	}
+	if(args & fpermissions) result += /*<drwxr-xr-x>*/12;
+	if(!(args & no_nerdfonts)) result += /* */2;
+	return result;
+}
+
+bool condition_isdir(mode_t stat) { return S_ISDIR(stat); }
+bool condition_isfile(mode_t stat) { return !condition_isdir(stat); }
+bool condition_unsorted(mode_t stat) { stat=stat; return false; }
+
 int main(int argc, char** argv) {
-	size_t fcount = 0; unsigned char longest_fname = 0;
+	size_t fcount = 0; unsigned char longest_fname = 0; long int largest_fsize = 0;
 	struct file* files = NULL;
 	struct winsize termsize; ioctl(STDOUT_FILENO, TIOCGWINSZ, &termsize);
 
-	const size_t starting_pos = (args | dot_dirs) ? 0 : 2;
 	int dir_argc = argc<=1 ? 1 : parse_arguments(argc, argv);
 	
 	if(dir_argc==1) {
-		files = query_files(".", &longest_fname, &fcount);
-		list_files(files, longest_fname+1, fcount, termsize);
+		files = query_files(".", &longest_fname, &largest_fsize, &fcount);
+		if(args & unsorted) {
+			list_files(files, get_longest_fdescriptor(longest_fname, largest_fsize), fcount, termsize, condition_unsorted);
+		} else {
+			list_files(files, get_longest_fdescriptor(longest_fname, largest_fsize), fcount, termsize, condition_isfile);
+			list_files(files, get_longest_fdescriptor(longest_fname, largest_fsize), fcount, termsize, condition_isdir);			
+		}
 		free(files);
+		putchar('\n');
 		return 0;
 	}
 
@@ -157,9 +298,15 @@ int main(int argc, char** argv) {
 		}
 
 		fcount = 0; longest_fname = 0;
-		files = query_files(argv[i], &longest_fname, &fcount);
-		list_files(files, longest_fname+1, fcount, termsize);
+		files = query_files(argv[i], &longest_fname, &largest_fsize, &fcount);
+		if(args & unsorted) {
+			list_files(files, get_longest_fdescriptor(longest_fname, largest_fsize), fcount, termsize, condition_unsorted);
+		} else {
+			list_files(files, get_longest_fdescriptor(longest_fname, largest_fsize), fcount, termsize, condition_isdir);
+			list_files(files, get_longest_fdescriptor(longest_fname, largest_fsize), fcount, termsize, condition_isfile);			
+		}
 		free(files);
 		dir_argc--;
-	} return 0;
+	} putchar('\n');
+	return 0;
 }
