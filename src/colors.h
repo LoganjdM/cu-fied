@@ -1,7 +1,5 @@
-#ifndef _STDIO_H
-// kinda dont want to import all of stdio just for this .. //
-extern int fprintf (void*__restrict __stream, const char *__restrict __format, ...) __nonnull ((1));
-#endif
+#include <stdio.h>
+#include <unistd.h>
 
 #define RED "\x1b[31m"
 #define BLUE "\x1b[34m"
@@ -15,6 +13,9 @@ extern int fprintf (void*__restrict __stream, const char *__restrict __format, .
 
 #define RESET "\x1b[0m"
 
-int escape_code(FILE* stream, const char ansi[5]) {
-	return fprintf(stream, ansi);
+// sometimes print collors? //
+int escape_code(void* stream, const char ansi[5]) {
+	if(isatty(fileno(stream))) {
+		return fprintf(stream, ansi);
+	} return 0;
 }
