@@ -13,9 +13,12 @@
 
 #define RESET "\x1b[0m"
 
-// sometimes print collors? //
-int escape_code(void* stream, const char ansi[5]) {
+int escape_code(FILE* stream, const char ansi[5]) {
 	if(isatty(fileno(stream))) {
+		#ifndef _GNU_SOURCE // zig wont shut up //
+		return fprintf(stream, "%s", ansi);
+		#else
 		return fprintf(stream, ansi);
+		#endif
 	} return 0;
 }

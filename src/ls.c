@@ -9,8 +9,15 @@
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include "colors.h"
+
+// this is because i started working on this at school on our macs... used zig cuz it was easier to get binaries for(brew compiling gcc would take years dude) //
+#ifndef _GNU_SOURCE
+#define reallocarray(ptr, elements, size) realloc(ptr, elements*size)
+#endif
 // TODO: this needs alot of refactoring //
-// TODO: fix dev build segfault //
+// FIXME: dev build segfault on GCC when parsing -hr=x //
+// FIXME: get_longest_file_descriptor //
+// TODO: change to using blocks to avoid int overflow on large files/directories //
 
 // the ENTIRE reason for this is jsut cuz i thought itd be unique and wanted to see if i could do it //
 // it turned out to be not that bad and I auctually quite liked using it //
@@ -46,40 +53,42 @@ uint32_t dir_contents(const char* dir) {
 		escape_code(stderr, BLUE); fprintf(stderr ,"%s", dir); escape_code(stderr, RED);
 		fprintf(stderr, "\". (Could not open directory!)\n"); escape_code(stderr, RESET);
 		return 0;
-	} uint32_t result = 0;
+	} uint32_t result = 0; // zig cc doesn't like this //
 	struct stat st; struct dirent* dp;
 	char true_fname[strlen(dir)+257] = {};
-	while((dp=readdir(dfd))!=NULL) {
+	while((dp=readdir(dfd))!=nullptr) {
 		sprintf(true_fname, "%s/%s", dir, dp->d_name);
-		#pragma GCC diagnostic ignored "-Wunused-variable"
-		#pragma GCC diagnostic push
-		int _ = stat(true_fname, &st);
-		assert(_!=-1); // in theory stat should not fail here since the file exists: if it does fail there is programmer error involved
-		#pragma GCC diagnostic pop
+		#ifndef NDEBUG
+		// in theory stat should not fail here since the file exists: if it does fail there is programmer error involved
+		assert(stat(true_fname, &st));
+		#else
+		stat(true_fname, &st);
+		#endif
 		if(!S_ISDIR(st.st_mode)) result += st.st_size;
 	} closedir(dfd); return st.st_size;
 }
 
 #define STARTING_LEN 25
-struct file* query_files(const char* dir, uint8_t* longest_fname, uint32_t* largest_fsize, uint16_t* fcount) {
+struct file* query_files(const char* dir, uint8_t* longest_fname, uint32_t* largest_fsize, uint16_t* fcount, struct file* files) {
 	DIR* dfd = opendir(dir);
 	if(!dfd) {
 		escape_code(stderr, RED);
 		fprintf(stderr, "Failed to query files! (memory allocation failure!)\n"); escape_code(stderr, RESET);
-		return NULL;
- 	} struct file* files = NULL; uint16_t array_len = STARTING_LEN;
-	// TODO: dont allocate if files is allocated, instead reuse it for the loop: saving malloc calls to OS //
-	if(!(files=calloc(array_len, sizeof(struct file)))) {
-		escape_code(stderr, RED);
-		fprintf(stderr, "Failed to query files! (memory allocation failure!)\n"); escape_code(stderr, RESET);
-		closedir(dfd);
-		return NULL;
-	} *largest_fsize = 0; *longest_fname = 0;
+		return nullptr;
+ 	} uint16_t array_len = STARTING_LEN;
+	if(!files) {
+		if(!(files=calloc(array_len, sizeof(struct file)))) {
+			escape_code(stderr, RED);
+			fprintf(stderr, "Failed to query files! (memory allocation failure!)\n"); escape_code(stderr, RESET);
+			closedir(dfd);
+			return nullptr;
+		} *largest_fsize = 0; *longest_fname = 0;
+	}
 	
 	char true_fname[strlen(dir)+257] = {}; 
  	struct stat st; struct dirent* dp;
  	uint16_t i;
-	for(i=0;(dp=readdir(dfd))!=NULL;++i) {
+	for(i=0;(dp=readdir(dfd))!=nullptr;++i) {
 		if(i>=array_len) {
 			if(((array_len*2)*sizeof(struct file)) < (array_len*sizeof(struct file))) {
 				escape_code(stderr, RED);
@@ -98,11 +107,12 @@ struct file* query_files(const char* dir, uint8_t* longest_fname, uint32_t* larg
 		}
 		sprintf(true_fname, "%s/%s", dir, dp->d_name);
 
-		#pragma GCC diagnostic ignored "-Wunused-variable"
-		#pragma GCC diagnostic push
-		int _ = stat(true_fname, &st);
-		assert(_!=-1); // in theory stat should not fail here since the file exists: if it does fail there is programmer error involved
-		#pragma GCC diagnostic pop
+		#ifndef NDEBUG
+		// in theory stat should not fail here since the file exists: if it does fail there is programmer error involved
+		assert(stat(true_fname, &st));
+		#else
+		stat(true_fname, &st);
+		#endif
 		
 		files[i].stat = st.st_mode;
 		// TODO: change to blocks //
@@ -123,14 +133,10 @@ struct file* query_files(const char* dir, uint8_t* longest_fname, uint32_t* larg
 	return files;
 }
 
-// inline void print_help(void) {
-// 	
-// }
-
 // returns the amount of auctual non-argument entires there are so we can just skip past em //
 int parse_arguments(const int argc, char** argv) {
 	int dir_argc = 0;
-	enum arg_options arg;
+	enum arg_options opt; (void)opt;
 	for(int i=0;i<argc;++i) {
 		if(argv[i][0]!='-') {
 			dir_argc++;
@@ -220,7 +226,7 @@ int parse_arguments(const int argc, char** argv) {
 
 // i hate even simple conversion math //
 char simplified_fsize(uint32_t fsize, float* readable_fsize) {
-	enum arg_options opt;
+	enum arg_options opt; (void)opt;
 	*readable_fsize = 0;
 	char unit = 0;
 	uint8_t size_arg = SIZE_ARG(args);
@@ -244,7 +250,7 @@ char simplified_fsize(uint32_t fsize, float* readable_fsize) {
 }
 
 void list_files(const struct file* files, const uint16_t longest_fdescriptor, const uint16_t fcount, const struct winsize termsize, bool (*condition)(mode_t)) {
-	enum arg_options opt;
+	enum arg_options opt; (void)opt;
 	static uint8_t files_printed = 0;
 	uint8_t files_per_row =  termsize.ws_col / longest_fdescriptor;
 	for(uint16_t i=0;i<fcount;++i) {
@@ -294,10 +300,10 @@ void list_files(const struct file* files, const uint16_t longest_fdescriptor, co
 		}
 		dont_list_directories:
 
-		// printf("%u-%u=%u", longest_fdescriptor, fdescriptor, longest_fdescriptor-fdescriptor);
-		for(uint16_t i=longest_fdescriptor-fdescriptor;i>0;--i) {
-			putchar(' ');
-		}
+		// printf("%u", longest_fdescriptor-fdescriptor);
+		// for(uint16_t i=longest_fdescriptor-fdescriptor;i>0;--i) {
+		// 	putchar(' ');
+		// }
 		files_printed++;
 		// i tried doing this based off bytes printed, gave issues. also same with using `i % files_per_row` as it gave some segfault i dont undestand to be real with you //
 		if(files_printed >= files_per_row) {
@@ -306,9 +312,11 @@ void list_files(const struct file* files, const uint16_t longest_fdescriptor, co
 	}
 }
 
+// FIXME: this function is incorrect //
 uint16_t get_longest_fdescriptor(const uint8_t longest_fname, const uint32_t largest_fsize) {
-	enum arg_options opt;
+	enum arg_options opt; (void)opt;
 	uint16_t result = ((uint16_t)longest_fname)+2;
+	printf("%u\n", result);
 
 	uint8_t size_arg = SIZE_ARG(args);
 	switch(size_arg) {
@@ -352,16 +360,16 @@ bool condition_unsorted(mode_t stat) { (void)stat; return false; }
 
 int main(int argc, char** argv) {
 	uint16_t fcount = 0; uint8_t longest_fname = 0; uint32_t largest_fsize = 0;
-	struct file* files = NULL;
+	struct file* files = nullptr;
 	struct winsize termsize; ioctl(STDOUT_FILENO, TIOCGWINSZ, &termsize);
 
 	int dir_argc = argc<=1 ? 1 : parse_arguments(argc, argv);
-	// #ifndef NDEBUG
+	#ifndef NDEBUG
 	printf("args: %b\nsize arg: %b\n", args, SIZE_ARG(args));
-	// #endif
+	#endif
 
 	if(dir_argc==1) {
-		files = query_files(".", &longest_fname, &largest_fsize, &fcount);
+		files = query_files(".", &longest_fname, &largest_fsize, &fcount, files);
 		LIST_FILES_MAIN(args & unsorted, files, longest_fname, largest_fsize, fcount, termsize);
 		free(files);
 		putchar('\n');
@@ -389,11 +397,10 @@ int main(int argc, char** argv) {
 		}
 
 		fcount = 0; longest_fname = 0;
-		// TODO: change so files is not reallocated for each iteration of the loop, this is a waste of resources //
-		files = query_files(argv[i], &longest_fname, &largest_fsize, &fcount);
+		files = query_files(argv[i], &longest_fname, &largest_fsize, &fcount, files);
 		LIST_FILES_MAIN(args & unsorted, files, longest_fname, largest_fsize, fcount, termsize);		
-		free(files);
 		dir_argc--;
 	} putchar('\n');
+	free(files);
 	return 0;
 }
