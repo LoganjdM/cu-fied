@@ -335,6 +335,7 @@ uint16_t get_longest_fdescriptor(const uint8_t longest_fname, const uint32_t lar
 		if(args & ARG_DIR_CONTS) result += /*Contains */9;
 		result += size_arg-1;
 	}
+	// TODO: //
 	if(args & ARG_FPERMS) result += /*<drwxr-xr-x> */13;
 	if(!(args & ARG_NO_NERDFONTS)) result += /* */2;
 	#ifndef NDEBUG
@@ -385,18 +386,24 @@ int main(int argc, char** argv) {
 			escape_code(stderr, YELLOW);
 			fprintf(stderr, "Could not access "); escape_code(stderr, BLUE); fprintf(stderr, "%s!", argv[i]);
 			escape_code(stderr, YELLOW); fprintf(stderr, " (does it exist?)\n"); escape_code(stderr, RESET);
+			continue;
 		} else if(!S_ISDIR(st.st_mode)) {
 			escape_code(stderr, YELLOW);
 			fprintf(stderr, "Could not access "); escape_code(stderr, BLUE); fprintf(stderr, "%s!", argv[i]);
 			escape_code(stderr, YELLOW); fprintf(stderr, " (is a file!)\n"); escape_code(stderr, RESET);
 			continue;
 		}
+		escape_code(stdout, BLUE);
+		if(!(args & ARG_NO_NERDFONTS)) printf(" ");
+		printf("%s:\n", argv[i]); escape_code(stdout, RESET);
 
 		fcount = 0; longest_fname = 0;
 		files = query_files(argv[i], &longest_fname, &largest_fsize, &fcount, files);
 		LIST_FILES_MAIN(args & ARG_UNSORTED, files, longest_fname, largest_fsize, fcount, termsize);		
 		dir_argc--;
-	} putchar('\n');
+		putchar('\n');
+		if(dir_argc>1) putchar('\n');
+	}
 	free(files);
 	return 0;
 }
