@@ -1,4 +1,5 @@
-bin/**
-dev/**
+.zig-cache
+bin
+dev
 nob
 nob.old

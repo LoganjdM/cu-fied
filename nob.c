@@ -1,22 +1,48 @@
 #define NOB_IMPLEMENTATION
 #include "nob.h"
-#include <assert.h>
 
-// _DEFAULT_SOURCE definition is not *reallyy* needed. it really only gives me reallocarray() which basically is just realloc... but i like the function and I think its akeen to using calloc over malloc //
-#define append_dev(bin, src) nob_cmd_append(&dev, "cc", "--std=c23", "-g", "-lm", "-D _DEFAULT_SOURCE", "-o", bin, src)
-#define append_build(bin, src) nob_cmd_append(&build, "cc", "--std=c23", "-Wall", "-Wextra", "-lm", "-D _DEFAULT_SOURCE", "-D NDEBUG", "-O2", "-fstack-protector-all", "-o", bin, src)
+void build_zig_bin(const char* root, const char* name, bool debug) {
+	Nob_Cmd cmd = {0};
+	nob_cmd_append(&cmd, "zig", "build-exe", "-I", "src/moving", "-lc", "--cache-dir", ".zig-cache", "-cflags", "-std=c23", "-fstack-protector-all", "--");
+	nob_cmd_append(&cmd, debug ? "-ODebug" : "-OReleaseSafe");
+	nob_cmd_append(&cmd, root, "--name", name);
+	NOB_ASSERT(nob_cmd_run_sync(cmd));
+	
+	Nob_Cmd mv = {0};
+	nob_cmd_append(&mv, "mv", name, debug ? "dev/" : "bin/");
+	NOB_ASSERT(nob_cmd_run_sync(mv));
+
+	char blob[strlen(name) + 2] = {};
+	sprintf(blob, "%s.o", name);
+	
+	Nob_Cmd rm_blob = {0};
+	nob_cmd_append(&rm_blob, "rm", blob);
+	NOB_ASSERT(nob_cmd_run_sync(rm_blob));
+}
+
+void build_bin(const char* src, const char* name, bool debug) {
+	Nob_Cmd cmd = {0};
+	nob_cmd_append(&cmd, "cc", "--std=c23", "-lm", "-D_DEFAULT_SOURCE");
+	char bin[strlen(name) + 4] = {}; 
+	if(!debug) {
+		nob_cmd_append(&cmd, "-Wall", "-Wextra", "-DNDEBUG", "-O2", "-fstack-protector-all");
+	} else {
+		nob_cmd_append(&cmd, "-g"); // https://i.imgflip.com/768lyp.jpg //
+	}
+	sprintf(bin, debug ? "dev/%s" : "bin/%s", name);
+	nob_cmd_append(&cmd, src, "-o", bin);
+	NOB_ASSERT(nob_cmd_run_sync(cmd));
+}
 
 int main(int argc, char** argv) {
 	NOB_GO_REBUILD_URSELF(argc, argv);
 
-	Nob_Cmd dev = {0};
-	append_dev("dev/lsf", "src/ls.c");
-
-	assert(nob_cmd_run_sync(dev));
-
-	Nob_Cmd build = {0};
-	append_build("bin/lsf", "src/ls.c");
+	nob_mkdir_if_not_exists("bin");
+	nob_mkdir_if_not_exists("dev");
 	
-	assert(nob_cmd_run_sync(build));
+	for(int is_debug = true; is_debug >= false; --is_debug) {
+		build_bin("src/ls.c", "lsf", is_debug);
+		build_zig_bin("-Mroot=src/moving/mv.zig", "mvf", is_debug);
+	}
 	return 0;
 }

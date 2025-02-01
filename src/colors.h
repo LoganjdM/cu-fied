@@ -15,10 +15,6 @@
 
 int escape_code(FILE* stream, const char ansi[5]) {
 	if(isatty(fileno(stream))) {
-		#ifndef _GNU_SOURCE // zig wont shut up //
-		return fprintf(stream, "%s", ansi);
-		#else
 		return fprintf(stream, ansi);
-		#endif
 	} return 0;
 }

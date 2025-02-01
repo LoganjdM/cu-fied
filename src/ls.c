@@ -9,35 +9,32 @@
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include "colors.h"
-
 // this is because i started working on this at school on our macs... used zig cuz it was easier to get binaries for(brew compiling gcc would take years dude) //
 #ifndef _GNU_SOURCE
 #define reallocarray(ptr, elements, size) realloc(ptr, elements*size)
 #endif
+
 // TODO: this needs alot of refactoring //
 // FIXME: dev build segfault on GCC when parsing -hr=x //
-// FIXME: get_longest_file_descriptor //
 // TODO: change to using blocks to avoid int overflow on large files/directories //
 
 // the ENTIRE reason for this is jsut cuz i thought itd be unique and wanted to see if i could do it //
 // it turned out to be not that bad and I auctually quite liked using it //
 uint16_t args = 0b0;
-enum arg_options {
-	// booleans //
-	dot_dirs = 0b1,
-	dot_files = 0b10,
-	unsorted = 0b100,
-	no_nerdfonts = 0b1000,
-	fpermissions = 0b1000000,
-	dir_conts = 0b10000000,
-	// u2 int //
-	size_none = 0b000000,
-	size_bytes = 0b010000,
-	size_bin = 0b100000,
-	size_si = 0b110000,
-};
-// this was a doozie //
+
+// booleans //
+#define ARG_DOT_DIRS     0b1
+#define ARG_DOT_FILES    0b10
+#define ARG_UNSORTED     0b100
+#define ARG_NO_NERDFONTS 0b1000
+#define ARG_FPERMS       0b1000000
+#define ARG_DIR_CONTS    0b10000000
+// u2 int //
 #define SIZE_ARG(args) (((args) << 25)) >> 29
+#define ARG_SIZE_NONE    0b000000
+#define ARG_SIZE_BYTES   0b010000
+#define ARG_SIZE_BIN     0b100000
+#define ARG_SIZE_SI      0b110000
 
 struct file {
 	char name[256];
@@ -60,7 +57,7 @@ uint32_t dir_contents(const char* dir) {
 		sprintf(true_fname, "%s/%s", dir, dp->d_name);
 		#ifndef NDEBUG
 		// in theory stat should not fail here since the file exists: if it does fail there is programmer error involved
-		assert(stat(true_fname, &st));
+		assert(stat(true_fname, &st)!=-1);
 		#else
 		stat(true_fname, &st);
 		#endif
@@ -105,11 +102,12 @@ struct file* query_files(const char* dir, uint8_t* longest_fname, uint32_t* larg
 				break;
 			} files = (struct file*)new_ptr;
 		}
+
 		sprintf(true_fname, "%s/%s", dir, dp->d_name);
 
 		#ifndef NDEBUG
 		// in theory stat should not fail here since the file exists: if it does fail there is programmer error involved
-		assert(stat(true_fname, &st));
+		assert(stat(true_fname, &st)!=-1);
 		#else
 		stat(true_fname, &st);
 		#endif
@@ -136,7 +134,6 @@ struct file* query_files(const char* dir, uint8_t* longest_fname, uint32_t* larg
 // returns the amount of auctual non-argument entires there are so we can just skip past em //
 int parse_arguments(const int argc, char** argv) {
 	int dir_argc = 0;
-	enum arg_options opt; (void)opt;
 	for(int i=0;i<argc;++i) {
 		if(argv[i][0]!='-') {
 			dir_argc++;
@@ -144,33 +141,33 @@ int parse_arguments(const int argc, char** argv) {
 		}
 		// TODO: hashmap //
 		if(!strcmp(argv[i], "-a") || !strcmp(argv[i], "--all") || !strcmp(argv[i], "-f") || !strcmp(argv[i], "--full")) {
-			args |= dot_dirs | dot_files;
+			args |= ARG_DOT_DIRS | ARG_DOT_FILES;
 		} else if(!strcmp(argv[i], "-A") || !strcmp(argv[i], "--almost-all")) {
-			args |= dot_files;
+			args |= ARG_DOT_FILES;
 		} else if(!strcmp(argv[i], "-d") || !strcmp(argv[i], "--dot-dirs")) {
-			args |= dot_dirs;
+			args |= ARG_DOT_DIRS;
 		} else if(!strcmp(argv[i], "-nf") || !strcmp(argv[i], "--no-nerdfonts")) {
-			args |= no_nerdfonts;
+			args |= ARG_NO_NERDFONTS;
 		} else if(!strcmp(argv[i], "-c") || !strcmp(argv[i], "--dir-contents")) {
-			args |= dir_conts;
+			args |= ARG_DIR_CONTS;
 		} else if(!strcmp(argv[i], "-hr") || !strcmp(argv[i], "--human-readable")) {
 			if(argv[i+1]==nullptr) {
 				escape_code(stderr, YELLOW);
-				printf("\"%s\" is missing an argument on what type! (assumed none2).\n", argv[i]); escape_code(stderr, RESET);
+				fprintf(stderr, "\"%s\" is missing an argument on what type! (assumed none2).\n", argv[i]); escape_code(stderr, RESET);
 				return dir_argc;
 			} ++i;
 			switch(argv[i][0]) {
 				case 's':
-					args |= size_si;
+					args |= ARG_SIZE_SI;
 					break;
 				case 'n':
-					args |= size_none;
+					args |= ARG_SIZE_NONE;
 					break;
 				case 'b':
 					if(!strcmp(argv[i], "bin")) {
-						args |= size_bin;
+						args |= ARG_SIZE_BIN;
 					} else {
-						args |= size_bytes;
+						args |= ARG_SIZE_BYTES;
 					} break;
 				default:
 					uint8_t val = (uint8_t)atoi(argv[i]);
@@ -178,8 +175,8 @@ int parse_arguments(const int argc, char** argv) {
 						args |= (val << 4);
 					}
 			}
-		} else if(!strcmp(argv[i], "-U") || !strcmp(argv[i], "--unsorted")) {
-			args |= unsorted;
+		} else if(!strcmp(argv[i], "-U") || !strcmp(argv[i], "--ARG_UNSORTED")) {
+			args |= ARG_UNSORTED;
 		} else {
 			// FIXME: this causes segfault on dev build and only dev build //
 			// for some reason we need 2 seperate buffers, and I have no clue why //
@@ -226,7 +223,6 @@ int parse_arguments(const int argc, char** argv) {
 
 // i hate even simple conversion math //
 char simplified_fsize(uint32_t fsize, float* readable_fsize) {
-	enum arg_options opt; (void)opt;
 	*readable_fsize = 0;
 	char unit = 0;
 	uint8_t size_arg = SIZE_ARG(args);
@@ -250,16 +246,15 @@ char simplified_fsize(uint32_t fsize, float* readable_fsize) {
 }
 
 void list_files(const struct file* files, const uint16_t longest_fdescriptor, const uint16_t fcount, const struct winsize termsize, bool (*condition)(mode_t)) {
-	enum arg_options opt; (void)opt;
 	static uint8_t files_printed = 0;
 	uint8_t files_per_row =  termsize.ws_col / longest_fdescriptor;
 	for(uint16_t i=0;i<fcount;++i) {
 		if(condition(files[i].stat)) {
 			continue;
 		} else if(files[i].name[0] == '.') {
-			if(!(args & dot_dirs) && (strcmp(files[i].name, ".") && strcmp(files[i].name, ".."))) {
+			if(!(args & ARG_DOT_DIRS) && (strcmp(files[i].name, ".") && strcmp(files[i].name, ".."))) {
 				continue;
-			} else if(!(args & dot_files)) {
+			} else if(!(args & ARG_DOT_FILES)) {
 				continue;
 			}
 		} 
@@ -267,7 +262,7 @@ void list_files(const struct file* files, const uint16_t longest_fdescriptor, co
 		uint16_t fdescriptor = 0;
 		bool is_dir = S_ISDIR(files[i].stat);
 		if(is_dir) escape_code(stdout, BLUE);
-		if(!(args & no_nerdfonts)) {
+		if(!(args & ARG_NO_NERDFONTS)) {
 			if(is_dir) {
 				fdescriptor += printf(" ");
 			} else {
@@ -278,7 +273,7 @@ void list_files(const struct file* files, const uint16_t longest_fdescriptor, co
 		uint8_t size_arg = SIZE_ARG(args); 
 		if(size_arg) {
 			if(is_dir) {
-				if(!(args & dir_conts)) {
+				if(!(args & ARG_DIR_CONTS)) {
 					goto dont_list_directories;
 				} fdescriptor += printf("(Contains ");
 			} else {
@@ -301,9 +296,9 @@ void list_files(const struct file* files, const uint16_t longest_fdescriptor, co
 		dont_list_directories:
 
 		// printf("%u", longest_fdescriptor-fdescriptor);
-		// for(uint16_t i=longest_fdescriptor-fdescriptor;i>0;--i) {
-		// 	putchar(' ');
-		// }
+		for(uint16_t i=longest_fdescriptor-fdescriptor;i>0;--i) {
+			putchar(' ');
+		}
 		files_printed++;
 		// i tried doing this based off bytes printed, gave issues. also same with using `i % files_per_row` as it gave some segfault i dont undestand to be real with you //
 		if(files_printed >= files_per_row) {
@@ -314,9 +309,7 @@ void list_files(const struct file* files, const uint16_t longest_fdescriptor, co
 
 // FIXME: this function is incorrect //
 uint16_t get_longest_fdescriptor(const uint8_t longest_fname, const uint32_t largest_fsize) {
-	enum arg_options opt; (void)opt;
-	uint16_t result = ((uint16_t)longest_fname)+2;
-	printf("%u\n", result);
+	uint16_t result = ((uint16_t)longest_fname)+3;
 
 	uint8_t size_arg = SIZE_ARG(args);
 	switch(size_arg) {
@@ -332,18 +325,21 @@ uint16_t get_longest_fdescriptor(const uint8_t longest_fname, const uint32_t lar
 			float hr_size = 0;
 	 		simplified_fsize(largest_fsize, &hr_size);
 	 		char largest_size[25]; // somewhere around this i didn't do the math, but shouldn't overflow //
-	 		if(args & size_bin) {
+	 		if(args & ARG_SIZE_BIN) {
 	 			result += sprintf(largest_size, "%.1f XiB", hr_size);
 	 		} else {
 	 			result += sprintf(largest_size, "%.1f XB", hr_size);
 	 		}		 
 	} if(size_arg) {
 		result += /*( ) */4;
-		if(args & dir_conts) result += /*Contains */9;
-		result += size_arg;
+		if(args & ARG_DIR_CONTS) result += /*Contains */9;
+		result += size_arg-1;
 	}
-	if(args & fpermissions) result += /*<drwxr-xr-x>*/12;
-	if(!(args & no_nerdfonts)) result += /* */2;
+	if(args & ARG_FPERMS) result += /*<drwxr-xr-x> */13;
+	if(!(args & ARG_NO_NERDFONTS)) result += /* */2;
+	#ifndef NDEBUG
+	printf("longest file descriptor is %u.\n", result);
+	#endif
 	return result;
 }
 
@@ -361,7 +357,7 @@ bool condition_unsorted(mode_t stat) { (void)stat; return false; }
 int main(int argc, char** argv) {
 	uint16_t fcount = 0; uint8_t longest_fname = 0; uint32_t largest_fsize = 0;
 	struct file* files = nullptr;
-	struct winsize termsize; ioctl(STDOUT_FILENO, TIOCGWINSZ, &termsize);
+	struct winsize termsize; ioctl(fileno(stdout), TIOCGWINSZ, &termsize);
 
 	int dir_argc = argc<=1 ? 1 : parse_arguments(argc, argv);
 	#ifndef NDEBUG
@@ -370,7 +366,7 @@ int main(int argc, char** argv) {
 
 	if(dir_argc==1) {
 		files = query_files(".", &longest_fname, &largest_fsize, &fcount, files);
-		LIST_FILES_MAIN(args & unsorted, files, longest_fname, largest_fsize, fcount, termsize);
+		LIST_FILES_MAIN(args & ARG_UNSORTED, files, longest_fname, largest_fsize, fcount, termsize);
 		free(files);
 		putchar('\n');
 		return 0;
@@ -398,7 +394,7 @@ int main(int argc, char** argv) {
 
 		fcount = 0; longest_fname = 0;
 		files = query_files(argv[i], &longest_fname, &largest_fsize, &fcount, files);
-		LIST_FILES_MAIN(args & unsorted, files, longest_fname, largest_fsize, fcount, termsize);		
+		LIST_FILES_MAIN(args & ARG_UNSORTED, files, longest_fname, largest_fsize, fcount, termsize);		
 		dir_argc--;
 	} putchar('\n');
 	free(files);
