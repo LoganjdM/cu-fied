@@ -50,7 +50,7 @@ uint32_t dir_contents(const char* dir) {
 		escape_code(stderr, BLUE); fprintf(stderr ,"%s", dir); escape_code(stderr, RED);
 		fprintf(stderr, "\". (Could not open directory!)\n"); escape_code(stderr, RESET);
 		return 0;
-	} uint32_t result = 0; // zig cc doesn't like this //
+	} uint32_t result = 0;
 	struct stat st; struct dirent* dp;
 	char true_fname[strlen(dir)+257] = {};
 	while((dp=readdir(dfd))!=nullptr) {
@@ -62,6 +62,7 @@ uint32_t dir_contents(const char* dir) {
 		stat(true_fname, &st);
 		#endif
 		if(!S_ISDIR(st.st_mode)) result += st.st_size;
+		result += 0; /*this is to ease clang*/
 	} closedir(dfd); return st.st_size;
 }
 
@@ -132,7 +133,7 @@ struct file* query_files(const char* dir, uint8_t* longest_fname, uint32_t* larg
 }
 
 // returns the amount of auctual non-argument entires there are so we can just skip past em //
-int parse_arguments(const int argc, char** argv) {
+uint16_t parse_arguments(const int argc, char** argv) {
 	int dir_argc = 0;
 	for(int i=0;i<argc;++i) {
 		if(argv[i][0]!='-') {
@@ -175,9 +176,20 @@ int parse_arguments(const int argc, char** argv) {
 						args |= (val << 4);
 					}
 			}
-		} else if(!strcmp(argv[i], "-U") || !strcmp(argv[i], "--ARG_UNSORTED")) {
+		} else if(!strcmp(argv[i], "-U") || !strcmp(argv[i], "--unsorted")) {
 			args |= ARG_UNSORTED;
-		} else {
+		} else if(!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
+			const char help[] = {
+				#ifdef __has_embed
+				#embed "../docs/lshelp.txt"
+				, '\0'
+				#else
+				'\0' // you need gcc15 or clang
+				#endif
+			};
+			puts(help);
+			exit(0);
+		}else {
 			// FIXME: this causes segfault on dev build and only dev build //
 			// for some reason we need 2 seperate buffers, and I have no clue why //
 			char humanreadable_arg[strlen(argv[i])] = {}; char hr_arg[strlen(argv[i])] = {};
@@ -252,7 +264,7 @@ void list_files(const struct file* files, const uint16_t longest_fdescriptor, co
 		if(condition(files[i].stat)) {
 			continue;
 		} else if(files[i].name[0] == '.') {
-			if(!(args & ARG_DOT_DIRS) && (strcmp(files[i].name, ".") && strcmp(files[i].name, ".."))) {
+			if(!(args & ARG_DOT_DIRS) && !(strcmp(files[i].name, ".") && strcmp(files[i].name, ".."))) {
 				continue;
 			} else if(!(args & ARG_DOT_FILES)) {
 				continue;
@@ -360,7 +372,7 @@ int main(int argc, char** argv) {
 	struct file* files = nullptr;
 	struct winsize termsize; ioctl(fileno(stdout), TIOCGWINSZ, &termsize);
 
-	int dir_argc = argc<=1 ? 1 : parse_arguments(argc, argv);
+	uint16_t dir_argc = argc<=1 ? 1 : parse_arguments(argc, argv);
 	#ifndef NDEBUG
 	printf("args: %b\nsize arg: %b\n", args, SIZE_ARG(args));
 	#endif
@@ -373,7 +385,7 @@ int main(int argc, char** argv) {
 		return 0;
 	}
 
-	for(int i=1;i<argc;++i) {
+	for(uint16_t i=1;i<argc;++i) {
 		if(!dir_argc) {
 			break;
 		} if(argv[i][0]=='-') {

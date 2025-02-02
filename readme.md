@@ -8,8 +8,8 @@ Cu-fied (*pronounced /kjufaɪd/* ) is a collection of my own implementations of 
 First off this is mostly a side project for me and me only, so it is only designed for x86_64 linux. It *is* tested to work with MacOS but with some issues(notably compiling with `zig cc` since I couldn't get access to a c23 compiler): It most definitely will not work on Windows due to the use of `unistd.h`. There are also no plans to suppourt Windows either.
 
 With that out of the way you simply just need
-- A modern C compiler, *preferrably* GCC
-###### (however `zig cc` does work but to my knowledge it is just a Clang frontend)
+- A modern C compiler(C23 standard), *preferrably* GCC15 or a modern release of Clang
+###### (`zig cc` does work but to my knowledge it is just a Clang frontend)
 - The [Zig](https://ziglang.org/) compiler
 
 And building is as simple as running

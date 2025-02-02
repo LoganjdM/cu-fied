@@ -22,7 +22,7 @@ void build_zig_bin(const char* root, const char* name, bool debug) {
 
 void build_bin(const char* src, const char* name, bool debug) {
 	Nob_Cmd cmd = {0};
-	nob_cmd_append(&cmd, "cc", "--std=c23", "-lm", "-D_DEFAULT_SOURCE");
+	nob_cmd_append(&cmd, "clang", "--std=c23", "-lm", "-D_DEFAULT_SOURCE");
 	char bin[strlen(name) + 4] = {}; 
 	if(!debug) {
 		nob_cmd_append(&cmd, "-Wall", "-Wextra", "-DNDEBUG", "-O2", "-fstack-protector-all");

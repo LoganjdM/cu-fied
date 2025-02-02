@@ -15,6 +15,6 @@
 
 int escape_code(FILE* stream, const char ansi[5]) {
 	if(isatty(fileno(stream))) {
-		return fprintf(stream, ansi);
+		return fprintf(stream, "%s", ansi);
 	} return 0;
 }
