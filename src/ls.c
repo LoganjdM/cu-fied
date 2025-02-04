@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
+#include "../docs/versions.h"
 #include "colors.h"
 // this is because i started working on this at school on our macs... used zig cuz it was easier to get binaries for(brew compiling gcc would take years dude) //
 #ifndef _GNU_SOURCE
@@ -16,7 +17,8 @@
 
 // TODO: this needs alot of refactoring //
 // FIXME: dev build segfault on GCC when parsing -hr=x //
-// TODO: change to using blocks to avoid int overflow on large files/directories //
+// TODO: display bytes if file < 1block //
+// TODO: 0.2 seconds is a bit slow... I should try lessening my printf calls or using one long write() syscall //
 
 // the ENTIRE reason for this is jsut cuz i thought itd be unique and wanted to see if i could do it //
 // it turned out to be not that bad and I auctually quite liked using it //
@@ -42,7 +44,9 @@ struct file {
 	mode_t stat;
 };
 
-uint32_t dir_contents(const char* dir) {
+
+// FIXME: if bytes == true, this may overflow! //
+uint32_t dir_contents(const char* dir, const bool bytes) {
 	DIR* dfd = opendir(dir);
 	if(!dfd) {
 		escape_code(stderr, RED);
@@ -61,9 +65,11 @@ uint32_t dir_contents(const char* dir) {
 		#else
 		stat(true_fname, &st);
 		#endif
-		if(!S_ISDIR(st.st_mode)) result += st.st_size;
+		if(!S_ISDIR(st.st_mode)) {
+			result += bytes ? st.st_size : st.st_blocks;
+		}
 		result += 0; /*this is to ease clang*/
-	} closedir(dfd); return st.st_size;
+	} closedir(dfd); return result;
 }
 
 #define STARTING_LEN 25
@@ -116,11 +122,11 @@ struct file* query_files(const char* dir, uint8_t* longest_fname, uint32_t* larg
 		files[i].stat = st.st_mode;
 		// TODO: change to blocks //
 		if(!S_ISDIR(st.st_mode)) {
-			files[i].size = st.st_size;
+			files[i].size = (args & ARG_SIZE_BYTES)  ? st.st_size : st.st_blocks;
 		} else {
-			files[i].size = dir_contents(true_fname);
+			files[i].size = dir_contents(true_fname, args & ARG_SIZE_BYTES);
 		}
-		if(st.st_size > *largest_fsize) *largest_fsize = st.st_size;
+		if(files[i].size > *largest_fsize) *largest_fsize = st.st_size;
 
 		strcpy(files[i].name, dp->d_name);
 		uint8_t fname = (uint8_t)strlen(dp->d_name);
@@ -184,12 +190,16 @@ uint16_t parse_arguments(const int argc, char** argv) {
 				#embed "../docs/lshelp.txt"
 				, '\0'
 				#else
-				'\0' // you need gcc15 or clang
+				#warning "You need a modern version of Clang or GCC15."
+				'\0'
 				#endif
 			};
 			puts(help);
 			exit(0);
-		}else {
+		} else if(!strcmp(argv[i], "-v") || !strcmp(argv[i], "--version")) {
+			puts(version_ls);
+			exit(0);
+		} else {
 			// FIXME: this causes segfault on dev build and only dev build //
 			// for some reason we need 2 seperate buffers, and I have no clue why //
 			char humanreadable_arg[strlen(argv[i])] = {}; char hr_arg[strlen(argv[i])] = {};
@@ -238,21 +248,22 @@ char simplified_fsize(uint32_t fsize, float* readable_fsize) {
 	*readable_fsize = 0;
 	char unit = 0;
 	uint8_t size_arg = SIZE_ARG(args);
-	if(fsize<(size_arg==3 ? 1000 : 1024)) {
-		*readable_fsize = (float)fsize;
+	uint32_t real_fsize = fsize*512;
+	if(real_fsize<(size_arg==3 ? 1000 : 1024)) {
+		*readable_fsize = (float)real_fsize;
 		return unit;
 	}
 	NEW_UNIT(unit);
 	if(size_arg == 2) {
-		while(fsize>1048576) {
-			fsize >>= 10;
+		while(real_fsize>1048576) {
+			real_fsize >>= 10;
 			NEW_UNIT(unit);
-		} *readable_fsize = (float)fsize / 1024;
+		} *readable_fsize = (float)real_fsize / 1024;
 	} else {
-		while(fsize>10000) {
-			fsize /= 10;
+		while(real_fsize>10000) {
+			real_fsize /= 10;
 			NEW_UNIT(unit);
-		} /* hack, should be `/ 10` but shit sucks */*readable_fsize = (float)fsize / 100;
+		} /* hack, should be `/ 10` but shit sucks */*readable_fsize = (float)real_fsize / 100;
 	}
 	return unit;
 }
@@ -303,6 +314,7 @@ void list_files(const struct file* files, const uint16_t longest_fdescriptor, co
 				} else {
 					fdescriptor += printf("%.1f %cB) ", hr_size, unit);
 				}
+				// fdescriptor += printf("%u B) ", files[i].size);
 			}	
 		}
 		dont_list_directories:

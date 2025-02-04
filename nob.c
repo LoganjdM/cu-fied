@@ -3,8 +3,8 @@
 
 void build_zig_bin(const char* root, const char* name, bool debug) {
 	Nob_Cmd cmd = {0};
-	nob_cmd_append(&cmd, "zig", "build-exe", "-I", "src/moving", "-lc", "--cache-dir", ".zig-cache", "-cflags", "-std=c23", "-fstack-protector-all", "--");
-	nob_cmd_append(&cmd, debug ? "-ODebug" : "-OReleaseSafe");
+	nob_cmd_append(&cmd, "zig", "build-exe", "-I", "src/moving", "-lc", "--cache-dir", ".zig-cache", "-cflags", "-std=c23", "-fstack-protector-all", "-D_DEFAULT_SOURCE", "--");
+	nob_cmd_append(&cmd, debug ? "-ODebug" : "-OReleaseSmall");
 	nob_cmd_append(&cmd, root, "--name", name);
 	NOB_ASSERT(nob_cmd_run_sync(cmd));
 	
