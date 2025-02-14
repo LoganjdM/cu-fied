@@ -8,17 +8,14 @@
 #include <stdint.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
-#include "../docs/versions.h"
-#include "colors.h"
-// this is because i started working on this at school on our macs... used zig cuz it was easier to get binaries for(brew compiling gcc would take years dude) //
-#ifndef _GNU_SOURCE
-#define reallocarray(ptr, elements, size) realloc(ptr, elements*size)
-#endif
 
-// TODO: this needs alot of refactoring //
+#include "colors.h"
+#define APP_INFO
+#include "../nob.c"
+
+#define reallocarray(ptr, elements, size) realloc(ptr, elements*size)
+
 // FIXME: dev build segfault on GCC when parsing -hr=x //
-// TODO: display bytes if file < 1block //
-// TODO: 0.2 seconds is a bit slow... I should try lessening my printf calls or using one long write() syscall //
 
 // the ENTIRE reason for this is jsut cuz i thought itd be unique and wanted to see if i could do it //
 // it turned out to be not that bad and I auctually quite liked using it //
@@ -34,9 +31,6 @@ uint16_t args = 0b0;
 // u2 int //
 #define SIZE_ARG(args) (((args) << 25)) >> 29
 #define ARG_SIZE_NONE    0b000000
-#define ARG_SIZE_BYTES   0b010000
-#define ARG_SIZE_BIN     0b100000
-#define ARG_SIZE_SI      0b110000
 
 struct file {
 	char name[256];
@@ -49,26 +43,21 @@ struct file {
 uint32_t dir_contents(const char* dir, const bool bytes) {
 	DIR* dfd = opendir(dir);
 	if(!dfd) {
-		escape_code(stderr, RED);
+		print_escape_code(stderr, RED);
 		fprintf(stderr, "Failed to check the size of \"");
-		escape_code(stderr, BLUE); fprintf(stderr ,"%s", dir); escape_code(stderr, RED);
-		fprintf(stderr, "\". (Could not open directory!)\n"); escape_code(stderr, RESET);
+		print_escape_code(stderr, BLUE); fprintf(stderr ,"%s", dir); print_escape_code(stderr, RED);
+		fprintf(stderr, "\". (Could not open directory!)\n"); print_escape_code(stderr, RESET);
 		return 0;
 	} uint32_t result = 0;
 	struct stat st; struct dirent* dp;
 	char true_fname[strlen(dir)+257] = {};
 	while((dp=readdir(dfd))!=nullptr) {
 		sprintf(true_fname, "%s/%s", dir, dp->d_name);
-		#ifndef NDEBUG
-		// in theory stat should not fail here since the file exists: if it does fail there is programmer error involved
 		assert(stat(true_fname, &st)!=-1);
-		#else
-		stat(true_fname, &st);
-		#endif
 		if(!S_ISDIR(st.st_mode)) {
 			result += bytes ? st.st_size : st.st_blocks;
 		}
-		result += 0; /*this is to ease clang*/
+		result += 0;
 	} closedir(dfd); return result;
 }
 
@@ -76,14 +65,14 @@ uint32_t dir_contents(const char* dir, const bool bytes) {
 struct file* query_files(const char* dir, uint8_t* longest_fname, uint32_t* largest_fsize, uint16_t* fcount, struct file* files) {
 	DIR* dfd = opendir(dir);
 	if(!dfd) {
-		escape_code(stderr, RED);
-		fprintf(stderr, "Failed to query files! (memory allocation failure!)\n"); escape_code(stderr, RESET);
+		print_escape_code(stderr, RED);
+		fprintf(stderr, "Failed to query files! (memory allocation failure!)\n"); print_escape_code(stderr, RESET);
 		return nullptr;
  	} uint16_t array_len = STARTING_LEN;
 	if(!files) {
 		if(!(files=calloc(array_len, sizeof(struct file)))) {
-			escape_code(stderr, RED);
-			fprintf(stderr, "Failed to query files! (memory allocation failure!)\n"); escape_code(stderr, RESET);
+			print_escape_code(stderr, RED);
+			fprintf(stderr, "Failed to query files! (memory allocation failure!)\n"); print_escape_code(stderr, RESET);
 			closedir(dfd);
 			return nullptr;
 		} *largest_fsize = 0; *longest_fname = 0;
@@ -95,36 +84,31 @@ struct file* query_files(const char* dir, uint8_t* longest_fname, uint32_t* larg
 	for(i=0;(dp=readdir(dfd))!=nullptr;++i) {
 		if(i>=array_len) {
 			if(((array_len*2)*sizeof(struct file)) < (array_len*sizeof(struct file))) {
-				escape_code(stderr, RED);
-				fprintf(stderr, "Failed to query files! (realloaction caused multiplication overflow!)\n"); escape_code(stderr, RESET);
+				print_escape_code(stderr, RED);
+				fprintf(stderr, "Failed to query files! (realloaction caused multiplication overflow!)\n"); print_escape_code(stderr, RESET);
 				break;
 			} array_len*=2;
-			#ifndef NDEBUG
+			#ifdef DEBUG
 			printf("Rellocating %lu bytes", array_len*sizeof(struct file));
 			#endif
 			void* new_ptr = reallocarray(files, array_len, sizeof(struct file));
 			if(!new_ptr) {
-				escape_code(stderr, RED);
-				fprintf(stderr, "Failed to query files! (reallocation failure!)\n"); escape_code(stderr, RESET);
+				print_escape_code(stderr, RED);
+				fprintf(stderr, "Failed to query files! (reallocation failure!)\n"); print_escape_code(stderr, RESET);
 				break;
 			} files = (struct file*)new_ptr;
 		}
 
 		sprintf(true_fname, "%s/%s", dir, dp->d_name);
 
-		#ifndef NDEBUG
-		// in theory stat should not fail here since the file exists: if it does fail there is programmer error involved
 		assert(stat(true_fname, &st)!=-1);
-		#else
-		stat(true_fname, &st);
-		#endif
 		
 		files[i].stat = st.st_mode;
 		// TODO: change to blocks //
 		if(!S_ISDIR(st.st_mode)) {
-			files[i].size = (args & ARG_SIZE_BYTES)  ? st.st_size : st.st_blocks;
+			files[i].size = (SIZE_ARG(args)==1)  ? st.st_size : st.st_blocks;
 		} else {
-			files[i].size = dir_contents(true_fname, args & ARG_SIZE_BYTES);
+			files[i].size = dir_contents(true_fname, SIZE_ARG(args)==1);
 		}
 		if(files[i].size > *largest_fsize) *largest_fsize = st.st_size;
 
@@ -159,22 +143,22 @@ uint16_t parse_arguments(const int argc, char** argv) {
 			args |= ARG_DIR_CONTS;
 		} else if(!strcmp(argv[i], "-hr") || !strcmp(argv[i], "--human-readable")) {
 			if(argv[i+1]==nullptr) {
-				escape_code(stderr, YELLOW);
-				fprintf(stderr, "\"%s\" is missing an argument on what type! (assumed none2).\n", argv[i]); escape_code(stderr, RESET);
+				print_escape_code(stderr, YELLOW);
+				fprintf(stderr, "\"%s\" is missing an argument on what type! (assumed none).\n", argv[i]); print_escape_code(stderr, RESET);
 				return dir_argc;
 			} ++i;
 			switch(argv[i][0]) {
 				case 's':
-					args |= ARG_SIZE_SI;
+					args |= SIZE_ARG(3);
 					break;
 				case 'n':
 					args |= ARG_SIZE_NONE;
 					break;
 				case 'b':
 					if(!strcmp(argv[i], "bin")) {
-						args |= ARG_SIZE_BIN;
+						args |= SIZE_ARG(2);
 					} else {
-						args |= ARG_SIZE_BYTES;
+						args |= SIZE_ARG(1);
 					} break;
 				default:
 					uint8_t val = (uint8_t)atoi(argv[i]);
@@ -190,17 +174,19 @@ uint16_t parse_arguments(const int argc, char** argv) {
 				#embed "../docs/lshelp.txt"
 				, '\0'
 				#else
-				#warning "You need a modern version of Clang or GCC15."
+				#warning "You need a modern version of Clang 9 or GCC15."
 				'\0'
 				#endif
 			};
 			puts(help);
 			exit(0);
 		} else if(!strcmp(argv[i], "-v") || !strcmp(argv[i], "--version")) {
-			puts(version_ls);
+			puts(vers_ls);
 			exit(0);
+		} else if(!strcmp(argv[i], "-g") || !strcmp(argv[i], "--uid-gid")) {
+			args |= ARG_FPERMS;
 		} else {
-			// FIXME: this causes segfault on dev build and only dev build //
+			// FIXME: this causes segfault on dev build and only dev build, on only GCC wtfd? //
 			// for some reason we need 2 seperate buffers, and I have no clue why //
 			char humanreadable_arg[strlen(argv[i])] = {}; char hr_arg[strlen(argv[i])] = {};
 			if(!strcmp(strncpy(humanreadable_arg, argv[i], 17), "--human-readable=")) {
@@ -217,8 +203,8 @@ uint16_t parse_arguments(const int argc, char** argv) {
 				}
 				continue;
 			}
-			escape_code(stderr, YELLOW);
-			fprintf(stderr, "\"%s\" is not a valid argument!\n", argv[i]); escape_code(stderr, RESET);
+			print_escape_code(stderr, YELLOW);
+			fprintf(stderr, "\"%s\" is not a valid argument!\n", argv[i]); print_escape_code(stderr, RESET);
 			exit(1);
 		}
 	}
@@ -263,11 +249,39 @@ char simplified_fsize(uint32_t fsize, float* readable_fsize) {
 		while(real_fsize>10000) {
 			real_fsize /= 10;
 			NEW_UNIT(unit);
-		} /* hack, should be `/ 10` but shit sucks */*readable_fsize = (float)real_fsize / 100;
+		} /* hack, should be `/ 10` but shit sucks */*readable_fsize = (float)real_fsize / 1000;
 	}
 	return unit;
 }
 
+const char* fdescriptor_color(const mode_t fstat) {
+	if(fstat & S_IFDIR) return escape_code(stdout, BLUE);
+	if(fstat & S_IXUSR) return escape_code(stdout, GREEN);
+	if(S_ISREG(fstat)) return "\0";
+	if(fstat & S_IFLNK) return escape_code(stdout, CYAN);
+	return "\0";
+}
+
+// TODO: //
+uint8_t print_file_perms(const mode_t fstat) {
+	if(!(args & ARG_FPERMS)) {
+		return 0;
+	}
+	return 0;
+}
+
+// TODO: hashmap and file extension type dependent icons //
+char* nerdfont_icon(const struct file finfo) {
+	if(args & ARG_NO_NERDFONTS) {
+		return "\0";
+	}
+	
+	if(finfo.stat & S_IFDIR) return " ";
+	else if(finfo.stat & S_IXUSR) return " ";
+	else { return " "; }
+} 
+
+// TODO: this function is a little too slow for my liking(0.008 second cpu time): so many printf calls. A string builder of some kind would be benificial here //
 void list_files(const struct file* files, const uint16_t longest_fdescriptor, const uint16_t fcount, const struct winsize termsize, bool (*condition)(mode_t)) {
 	static uint8_t files_printed = 0;
 	uint8_t files_per_row =  termsize.ws_col / longest_fdescriptor;
@@ -280,49 +294,71 @@ void list_files(const struct file* files, const uint16_t longest_fdescriptor, co
 			} else if(!(args & ARG_DOT_FILES)) {
 				continue;
 			}
-		} 
+		}
+
+		// char fdescriptor_buidler[longest_fdescriptor] = {};
+		// uint16_t fdescriptor_len = print_file_perms(files[i].stat);
+
+		// strcat(fdescriptor_buidler, fdescriptor_color(files[i].stat));
+		printf("%s", fdescriptor_color(files[i].stat));
+		// strcat(fdescriptor_buidler, nerdfont_icon(files[i]));
+		uint16_t fdescriptor_len = printf("%s", nerdfont_icon(files[i]));
+		// strcat(fdescriptor_buidler, escape_code(stdout, BOLD));
+		printf("%s", escape_code(stdout, BOLD));
+
+		// strcat(fdescriptor_buidler, files[i].name);
+		// strcat(fdescriptor_buidler, " ");
+		fdescriptor_len += printf("%s ", files[i].name);
 		
-		uint16_t fdescriptor = 0;
-		bool is_dir = S_ISDIR(files[i].stat);
-		if(is_dir) escape_code(stdout, BLUE);
-		if(!(args & ARG_NO_NERDFONTS)) {
-			if(is_dir) {
-				fdescriptor += printf(" ");
-			} else {
-				fdescriptor += printf(" ");
-			}
-		} escape_code(stdout, BOLD);
-		fdescriptor += printf("%s ", files[i].name); escape_code(stdout, RESET);
-		uint8_t size_arg = SIZE_ARG(args); 
+		// strcat(fdescriptor_buidler, escape_code(stdout, RESET));
+		printf("%s", escape_code(stdout, RESET));
+		
+		uint8_t size_arg = SIZE_ARG(args);
 		if(size_arg) {
-			if(is_dir) {
+			if(S_ISDIR(files[i].stat)) {
 				if(!(args & ARG_DIR_CONTS)) {
 					goto dont_list_directories;
-				} fdescriptor += printf("(Contains ");
+				}
+				// const char* bytes = "(Contains ";
+				// strcat(fdescriptor_buidler, bytes);
+				fdescriptor_len += printf("(Contains ");
 			} else {
-				fdescriptor += printf("(");				
+				// const char* bytes = "(";
+				// strcat(fdescriptor_buidler, bytes);
+				fdescriptor_len += printf("(");
 			}
 			if(size_arg==1) {
-				fdescriptor += printf("%u B)", files[i].size);
+				// TODO: this is fine but compared to the strcat shenanigans going on before, i dont like it and i feel something else could be done //
+				// char* bytes = "";
+				// sprintf(bytes, "%u B)", files[i].size);
+				// strcat(fdescriptor_buidler, bytes);
+				fdescriptor_len += printf("%u B)", files[i].size);
 			} else {
 				float hr_size = 0;
 				char unit = simplified_fsize(files[i].size, &hr_size);
+				// char* bytes = "";
 				if(unit==0) {
-					fdescriptor += printf("%.1f B) ", hr_size);
+					// sprintf(bytes, "%.1f B) ", hr_size);
+					// strcat(fdescriptor_buidler, bytes);
+					fdescriptor_len += printf("%.1f B)", hr_size);
 				} else if(size_arg==2) {
-					fdescriptor += printf("%.1f %ciB) ", hr_size, unit);
+					// sprintf(bytes, "%.1f %ciB) ", hr_size, unit);
+					// strcat(fdescriptor_buidler, bytes);
+					fdescriptor_len += printf("%.1f %ciB)", hr_size, unit);
 				} else {
-					fdescriptor += printf("%.1f %cB) ", hr_size, unit);
+					// sprintf(bytes, "%.1f %cB) ", hr_size, unit);
+					// strcat(fdescriptor_buidler, bytes);
+					fdescriptor_len += printf("%.1f %cB)", hr_size, unit);
 				}
-				// fdescriptor += printf("%u B) ", files[i].size);
 			}	
+			
 		}
 		dont_list_directories:
 
-		// printf("%u", longest_fdescriptor-fdescriptor);
-		for(uint16_t i=longest_fdescriptor-fdescriptor;i>0;--i) {
-			putchar(' ');
+		for(uint16_t i=longest_fdescriptor-fdescriptor_len;i>0;--i) {
+			printf(" ");
 		}
+		// printf("%s", fdescriptor_buidler);
 		files_printed++;
 		// i tried doing this based off bytes printed, gave issues. also same with using `i % files_per_row` as it gave some segfault i dont undestand to be real with you //
 		if(files_printed >= files_per_row) {
@@ -341,7 +377,7 @@ uint16_t get_longest_fdescriptor(const uint8_t longest_fname, const uint32_t lar
 			break;
 		case 1:
 			result += floor(log10(largest_fsize))+1; // if I could get this equation to auctually be right then I'd like to use it to speed up `simplified_fsize(size_t, float*)`
-	 		#ifndef NDEBUG
+	 		#ifdef DEBUG
 	 		printf("The largest file %u bytes. the equation from pulled from our as- brain says thats %u base10 numbers.\n", largest_fsize, result-((uint16_t)longest_fname)+1);
 	 		#endif
 	 		break;
@@ -349,7 +385,7 @@ uint16_t get_longest_fdescriptor(const uint8_t longest_fname, const uint32_t lar
 			float hr_size = 0;
 	 		simplified_fsize(largest_fsize, &hr_size);
 	 		char largest_size[25]; // somewhere around this i didn't do the math, but shouldn't overflow //
-	 		if(args & ARG_SIZE_BIN) {
+	 		if(SIZE_ARG(args) == 2) {
 	 			result += sprintf(largest_size, "%.1f XiB", hr_size);
 	 		} else {
 	 			result += sprintf(largest_size, "%.1f XB", hr_size);
@@ -362,7 +398,7 @@ uint16_t get_longest_fdescriptor(const uint8_t longest_fname, const uint32_t lar
 	// TODO: //
 	if(args & ARG_FPERMS) result += /*<drwxr-xr-x> */13;
 	if(!(args & ARG_NO_NERDFONTS)) result += /* */2;
-	#ifndef NDEBUG
+	#ifdef DEBUG
 	printf("longest file descriptor is %u.\n", result);
 	#endif
 	return result;
@@ -385,7 +421,7 @@ int main(int argc, char** argv) {
 	struct winsize termsize; ioctl(fileno(stdout), TIOCGWINSZ, &termsize);
 
 	uint16_t dir_argc = argc<=1 ? 1 : parse_arguments(argc, argv);
-	#ifndef NDEBUG
+	#ifdef DEBUG
 	printf("args: %b\nsize arg: %b\n", args, SIZE_ARG(args));
 	#endif
 
@@ -407,19 +443,19 @@ int main(int argc, char** argv) {
 
 		struct stat st;
 		if(stat(argv[i], &st)==-1) {
-			escape_code(stderr, YELLOW);
-			fprintf(stderr, "Could not access "); escape_code(stderr, BLUE); fprintf(stderr, "%s!", argv[i]);
-			escape_code(stderr, YELLOW); fprintf(stderr, " (does it exist?)\n"); escape_code(stderr, RESET);
+			print_escape_code(stderr, YELLOW);
+			fprintf(stderr, "Could not access "); print_escape_code(stderr, BLUE); fprintf(stderr, "%s!", argv[i]);
+			print_escape_code(stderr, YELLOW); fprintf(stderr, " (does it exist?)\n"); print_escape_code(stderr, RESET);
 			continue;
 		} else if(!S_ISDIR(st.st_mode)) {
-			escape_code(stderr, YELLOW);
-			fprintf(stderr, "Could not access "); escape_code(stderr, BLUE); fprintf(stderr, "%s!", argv[i]);
-			escape_code(stderr, YELLOW); fprintf(stderr, " (is a file!)\n"); escape_code(stderr, RESET);
+			print_escape_code(stderr, YELLOW);
+			fprintf(stderr, "Could not access "); print_escape_code(stderr, BLUE); fprintf(stderr, "%s!", argv[i]);
+			print_escape_code(stderr, YELLOW); fprintf(stderr, " (is a file!)\n"); print_escape_code(stderr, RESET);
 			continue;
 		}
-		escape_code(stdout, BLUE);
+		print_escape_code(stdout, BLUE);
 		if(!(args & ARG_NO_NERDFONTS)) printf(" ");
-		printf("%s:\n", argv[i]); escape_code(stdout, RESET);
+		printf("%s:\n", argv[i]); print_escape_code(stdout, RESET);
 
 		fcount = 0; longest_fname = 0;
 		files = query_files(argv[i], &longest_fname, &largest_fsize, &fcount, files);

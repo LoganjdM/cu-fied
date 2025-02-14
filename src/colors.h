@@ -13,8 +13,15 @@
 
 #define RESET "\x1b[0m"
 
-int escape_code(FILE* stream, const char ansi[5]) {
-	if(isatty(fileno(stream))) {
-		return fprintf(stream, "%s", ansi);
-	} return 0;
+
+const char* escape_code(FILE* fp, const char ansi[5]) {
+	if(isatty(fileno(fp))) {
+		return ansi;
+	} else return NULL;
+}
+
+int print_escape_code(FILE* fp, const char ansi[5]) {
+	const char* bytes = escape_code(fp, ansi);
+	if(!bytes) return 0;
+	return fputs(bytes, fp);
 }

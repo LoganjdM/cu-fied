@@ -8,6 +8,9 @@ const c = @cImport({
 const std = @import("std");
 const mem = std.mem;
 
+var gp_alloc = std.heap.GeneralPurposeAllocator(.{}){};
+const gpa = gp_alloc.allocator();
+
 const move_args = struct {
 	dest: [*c]u8,
 	src: [][*c]u8,
@@ -31,29 +34,23 @@ fn parse_args() !move_args {
 			exe_call = false;
 			continue;
 		} if(arg[0]!='-') {
-			// FIXME: somethings wrong with my usage of ptrCast here but I dont know... //
-			params[param_count] = @ptrCast(c.malloc(mem.len(arg)));
-			if(params[param_count]==0) {
-				for(params) |param| {
-					c.free(param);
-				} return error.ValueTooSmall;
-			} params[param_count] = arg;
+			// FIXME: mem leak if fail //
+			params[param_count] = try gpa.create(u8);
+			params[param_count] = arg;
+			_=c.printf("hi\n");
 			param_count+=1;
 			continue;	
-		} // if(mem.eql(u8, @as([]const u8, arg), "-r")) { // <<< FIXME
+		} //if(mem.eql(u8, @as([]const u8, arg), "-r")) { // <<< FIXME
 		// 	c.move_args |= c.MOVE_ARGS_RECURSIVE;
 		// }
 	} if(param_count < 2) {
 		return error.InvalidArgs;
 	}
-	var dest: [*c]u8 = @ptrCast(c.malloc(mem.len(params[param_count])));
-	if(dest==0) {
-		for(params) |param| {
-			c.free(param);
-		} return error.OutOfMemory;
-	} dest = c.strcpy(dest, params[param_count]);
+	// FIXME: mem leak if fail //
+	var dest: [*c]u8 = try gpa.create(u8);
+	dest = c.strcpy(dest, params[param_count]);
 	var result: move_args = move_args{ .dest = dest, .src = params, .pos = param_count};
-	_ = result.unwind();
+	_=c.printf("%s %s", result.unwind(), result.dest);
 	return result;
 }
 
@@ -67,7 +64,8 @@ pub fn main() u8 {
 			_ = c.printf("You need to specify a source path and destination path!\n");
 		}
 		_ = c.escape_code(c.stderr, c.RESET);
-		c.exit(1);
+		// gp_alloc.deinit();
+		return 1;
 	};
 
 	var src: [*c]u8 = files.unwind();
@@ -75,5 +73,6 @@ pub fn main() u8 {
 		_ = c.printf("mv %s %s\n", src, files.dest);
 		src = files.unwind();
 	}
+	// gp_alloc.deinit();
 	return 0;
 }
