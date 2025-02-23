@@ -1,11 +1,8 @@
-const char vers_ls[] = "2.2.25";
-const char vers_mv[] = "0.2.25";
-
-#ifndef APP_INFO
 #define NOB_IMPLEMENTATION
 #include "nob.h"
 
-bool zigc(const char* root, const char* name, const bool debug) {
+char* cc = "clang";
+bool zigbuild(const char* root, const char* name, const bool debug) {
 	Nob_Cmd cmd = {0};
 	nob_cmd_append(&cmd, "zig", "build-exe", "-I", "src/moving", "-lc", "--cache-dir", ".zig-cache");
 	if(!debug) {
@@ -29,14 +26,14 @@ bool zigc(const char* root, const char* name, const bool debug) {
 	return nob_cmd_run_sync(cmd);
 }
 
-bool cc(const char* src, const char* name, const bool debug) {
+bool cbuild(const char* src, const char* name, const bool debug) {
 	Nob_Cmd cmd = {0};
-	nob_cmd_append(&cmd, "clang", "--std=c23", "-lm", "-D_DEFAULT_SOURCE");
+	nob_cmd_append(&cmd, cc, "--std=c23", "-lm", "-D_DEFAULT_SOURCE");
 	char bin[strlen(name) + 4] = {};
 	if(!debug) {
-		nob_cmd_append(&cmd, "-Wall", "-Wextra", "-O2", "-fstack-protector-all");
+		nob_cmd_append(&cmd, "-Wall", "-Wextra", "-O2", "-fstack-protector-all", "-DNDEBUG");
 	} else {
-		nob_cmd_append(&cmd, "-g", "-DDEBUG"); // https://i.imgflip.com/768lyp.jpg //
+		nob_cmd_append(&cmd, "-g"); // https://i.imgflip.com/768lyp.jpg //
 	}
 	sprintf(bin, debug ? "dev/%s" : "bin/%s", name);
 	nob_cmd_append(&cmd, src, "-o", bin);
@@ -49,10 +46,10 @@ int main(int argc, char** argv) {
 	nob_mkdir_if_not_exists("bin");
 	nob_mkdir_if_not_exists("dev");
 	
+	if(argc>1) cc = argv[1];
 	for(int8_t debug = true; debug >= false; --debug) {
-		assert(cc("src/ls.c", "lsf", debug));
+		assert(cbuild("src/ls.c", "lsf", debug));
 		// assert(zigc("-Mroot=src/moving/mv.zig", "mvf", debug));
 	}
 	return 0;
 }
-#endif

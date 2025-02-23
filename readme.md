@@ -1,6 +1,6 @@
-# Core Utils fanciFied (Cu-Fied)
+# Coreutils fanciFied (Cu-Fied)
 
-Cu-fied (*pronounced /kjufaɪd/* ) is a collection of my own implementations of [GNU's Core Utils](https://www.gnu.org/software/coreutils/) made to be "fancy" or "fancified".
+Cu-fied (*pronounced /kjufaɪd/* ) is a collection of my own implementations of [GNU's Coreutils](https://www.gnu.org/software/coreutils/) made to be "fancy" or "fancified".
 ###### In my subjective opinion.
 
 # Building from source

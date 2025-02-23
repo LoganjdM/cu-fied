@@ -4,18 +4,15 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <string.h>
-#include <assert.h>
 #include <stdint.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 
 #include "colors.h"
-#define APP_INFO
-#include "../nob.c"
+#include "../app_info.h"
 
-#define reallocarray(ptr, elements, size) realloc(ptr, elements*size)
-
-// FIXME: dev build segfault on GCC when parsing -hr=x //
+// Include this define if you are using zig cc, idk somethin's up with it //
+// #define reallocarray(ptr, elements, size) realloc(ptr, elements*size)
 
 // the ENTIRE reason for this is jsut cuz i thought itd be unique and wanted to see if i could do it //
 // it turned out to be not that bad and I auctually quite liked using it //
@@ -38,7 +35,6 @@ struct file {
 	mode_t stat;
 };
 
-
 // FIXME: if bytes == true, this may overflow! //
 uint32_t dir_contents(const char* dir, const bool bytes) {
 	DIR* dfd = opendir(dir);
@@ -53,7 +49,8 @@ uint32_t dir_contents(const char* dir, const bool bytes) {
 	char true_fname[strlen(dir)+257] = {};
 	while((dp=readdir(dfd))!=nullptr) {
 		sprintf(true_fname, "%s/%s", dir, dp->d_name);
-		assert(stat(true_fname, &st)!=-1);
+
+		stat(true_fname, &st);
 		if(!S_ISDIR(st.st_mode)) {
 			result += bytes ? st.st_size : st.st_blocks;
 		}
@@ -88,7 +85,7 @@ struct file* query_files(const char* dir, uint8_t* longest_fname, uint32_t* larg
 				fprintf(stderr, "Failed to query files! (realloaction caused multiplication overflow!)\n"); print_escape_code(stderr, RESET);
 				break;
 			} array_len*=2;
-			#ifdef DEBUG
+			#ifndef NDEBUG
 			printf("Rellocating %lu bytes", array_len*sizeof(struct file));
 			#endif
 			void* new_ptr = reallocarray(files, array_len, sizeof(struct file));
@@ -100,8 +97,7 @@ struct file* query_files(const char* dir, uint8_t* longest_fname, uint32_t* larg
 		}
 
 		sprintf(true_fname, "%s/%s", dir, dp->d_name);
-
-		assert(stat(true_fname, &st)!=-1);
+		stat(true_fname, &st);
 		
 		files[i].stat = st.st_mode;
 		// TODO: change to blocks //
@@ -174,7 +170,7 @@ uint16_t parse_arguments(const int argc, char** argv) {
 				#embed "../docs/lshelp.txt"
 				, '\0'
 				#else
-				#warning "You need a modern version of Clang 9 or GCC15."
+				#warning "You need a modern C compiler like Clang 9 or GCC15.\nTruthfully anything with #embed works"
 				'\0'
 				#endif
 			};
@@ -263,15 +259,15 @@ const char* fdescriptor_color(const mode_t fstat) {
 }
 
 // TODO: //
-uint8_t print_file_perms(const mode_t fstat) {
-	if(!(args & ARG_FPERMS)) {
-		return 0;
-	}
-	return 0;
-}
+// uint8_t print_file_perms(const mode_t fstat) {
+// 	if(!(args & ARG_FPERMS)) {
+// 		return 0;
+// 	}
+// 	return 0;
+// }
 
 // TODO: hashmap and file extension type dependent icons //
-char* nerdfont_icon(const struct file finfo) {
+const char* nerdfont_icon(const struct file finfo) {
 	if(args & ARG_NO_NERDFONTS) {
 		return "\0";
 	}
@@ -281,7 +277,30 @@ char* nerdfont_icon(const struct file finfo) {
 	else { return " "; }
 } 
 
-// TODO: this function is a little too slow for my liking(0.008 second cpu time): so many printf calls. A string builder of some kind would be benificial here //
+typedef struct {
+	// fuck sake clang //
+	char* str;
+	void* last;
+	size_t len;
+} stringbuilder_t;
+
+// returns bytes moved //
+static inline size_t sb_append(stringbuilder_t* sb, const char* appendee) {
+	const size_t appendlen = strlen(appendee);
+	// FIXME: this leaks memory. in a fast and quick to kill itself program like this it doesnt matter but its unideal :\ //
+	// to qoute Clive Thompson: "Of course it leaks." "The ultimate garbage collection is done without programmer intervention" //
+	// uhmmm... that qoute was from him making a missile... but the point still stands, the OS will free everything for us anyways //
+	char* newstr = (char*)realloc(sb->str, sb->len+appendlen+1); // +1 for \0
+	if(!newstr) return 0;
+
+	sb->last = mempcpy(sb->last, appendee, appendlen);
+	sb->len += appendlen;
+
+	// *((char*)sb->last) = '\0';
+	return appendlen;
+}
+
+// zamn i was right on the string builder, 3 times faster, 1.7 ms mean //
 void list_files(const struct file* files, const uint16_t longest_fdescriptor, const uint16_t fcount, const struct winsize termsize, bool (*condition)(mode_t)) {
 	static uint8_t files_printed = 0;
 	uint8_t files_per_row =  termsize.ws_col / longest_fdescriptor;
@@ -296,22 +315,17 @@ void list_files(const struct file* files, const uint16_t longest_fdescriptor, co
 			}
 		}
 
-		// char fdescriptor_buidler[longest_fdescriptor] = {};
 		// uint16_t fdescriptor_len = print_file_perms(files[i].stat);
+		char* sb_str = (char*)malloc(1); // dont give a shit on size, just have the OS give us some memory block //
+		stringbuilder_t sb = {sb_str, (void*)sb_str, 0};
+		sb_append(&sb, fdescriptor_color(files[i].stat));
+		size_t fdescriptor_len = sb_append(&sb, nerdfont_icon(files[i]));
+		sb_append(&sb, escape_code(stdout, BOLD));
 
-		// strcat(fdescriptor_buidler, fdescriptor_color(files[i].stat));
-		printf("%s", fdescriptor_color(files[i].stat));
-		// strcat(fdescriptor_buidler, nerdfont_icon(files[i]));
-		uint16_t fdescriptor_len = printf("%s", nerdfont_icon(files[i]));
-		// strcat(fdescriptor_buidler, escape_code(stdout, BOLD));
-		printf("%s", escape_code(stdout, BOLD));
-
-		// strcat(fdescriptor_buidler, files[i].name);
-		// strcat(fdescriptor_buidler, " ");
-		fdescriptor_len += printf("%s ", files[i].name);
+		fdescriptor_len += sb_append(&sb, files[i].name);
+		fdescriptor_len += sb_append(&sb, " ");
 		
-		// strcat(fdescriptor_buidler, escape_code(stdout, RESET));
-		printf("%s", escape_code(stdout, RESET));
+		sb_append(&sb, escape_code(stdout, RESET));
 		
 		uint8_t size_arg = SIZE_ARG(args);
 		if(size_arg) {
@@ -319,36 +333,27 @@ void list_files(const struct file* files, const uint16_t longest_fdescriptor, co
 				if(!(args & ARG_DIR_CONTS)) {
 					goto dont_list_directories;
 				}
-				// const char* bytes = "(Contains ";
-				// strcat(fdescriptor_buidler, bytes);
-				fdescriptor_len += printf("(Contains ");
+				fdescriptor_len += sb_append(&sb, "(Contains ");
 			} else {
-				// const char* bytes = "(";
-				// strcat(fdescriptor_buidler, bytes);
-				fdescriptor_len += printf("(");
+				fdescriptor_len += sb_append(&sb, "(");
 			}
 			if(size_arg==1) {
-				// TODO: this is fine but compared to the strcat shenanigans going on before, i dont like it and i feel something else could be done //
-				// char* bytes = "";
-				// sprintf(bytes, "%u B)", files[i].size);
-				// strcat(fdescriptor_buidler, bytes);
-				fdescriptor_len += printf("%u B)", files[i].size);
+				char* bytes = "";
+				sprintf(bytes, "%u B)", files[i].size);
+				fdescriptor_len += sb_append(&sb, bytes);
 			} else {
 				float hr_size = 0;
 				char unit = simplified_fsize(files[i].size, &hr_size);
-				// char* bytes = "";
+				char bytes[100] = {0};
 				if(unit==0) {
-					// sprintf(bytes, "%.1f B) ", hr_size);
-					// strcat(fdescriptor_buidler, bytes);
-					fdescriptor_len += printf("%.1f B)", hr_size);
+					sprintf(bytes, "%.1f B) ", hr_size);
+					fdescriptor_len += sb_append(&sb, bytes);
 				} else if(size_arg==2) {
-					// sprintf(bytes, "%.1f %ciB) ", hr_size, unit);
-					// strcat(fdescriptor_buidler, bytes);
-					fdescriptor_len += printf("%.1f %ciB)", hr_size, unit);
+					sprintf(bytes, "%.1f %ciB) ", hr_size, unit);
+					fdescriptor_len += sb_append(&sb, bytes);
 				} else {
-					// sprintf(bytes, "%.1f %cB) ", hr_size, unit);
-					// strcat(fdescriptor_buidler, bytes);
-					fdescriptor_len += printf("%.1f %cB)", hr_size, unit);
+					sprintf(bytes, "%.1f %cB) ", hr_size, unit);
+					fdescriptor_len += sb_append(&sb, bytes);
 				}
 			}	
 			
@@ -356,14 +361,14 @@ void list_files(const struct file* files, const uint16_t longest_fdescriptor, co
 		dont_list_directories:
 
 		for(uint16_t i=longest_fdescriptor-fdescriptor_len;i>0;--i) {
-			printf(" ");
+			sb_append(&sb, " ");
 		}
-		// printf("%s", fdescriptor_buidler);
 		files_printed++;
 		// i tried doing this based off bytes printed, gave issues. also same with using `i % files_per_row` as it gave some segfault i dont undestand to be real with you //
 		if(files_printed >= files_per_row) {
-			putchar('\n'); files_printed = 0;
-		}
+			printf("%s\n", sb.str); files_printed = 0;
+		} else printf("%s", sb.str);
+		free(sb.str);
 	}
 }
 
@@ -377,7 +382,7 @@ uint16_t get_longest_fdescriptor(const uint8_t longest_fname, const uint32_t lar
 			break;
 		case 1:
 			result += floor(log10(largest_fsize))+1; // if I could get this equation to auctually be right then I'd like to use it to speed up `simplified_fsize(size_t, float*)`
-	 		#ifdef DEBUG
+	 		#ifndef NDEBUG
 	 		printf("The largest file %u bytes. the equation from pulled from our as- brain says thats %u base10 numbers.\n", largest_fsize, result-((uint16_t)longest_fname)+1);
 	 		#endif
 	 		break;
@@ -398,7 +403,7 @@ uint16_t get_longest_fdescriptor(const uint8_t longest_fname, const uint32_t lar
 	// TODO: //
 	if(args & ARG_FPERMS) result += /*<drwxr-xr-x> */13;
 	if(!(args & ARG_NO_NERDFONTS)) result += /* */2;
-	#ifdef DEBUG
+	#ifndef NDEBUG
 	printf("longest file descriptor is %u.\n", result);
 	#endif
 	return result;
@@ -421,7 +426,7 @@ int main(int argc, char** argv) {
 	struct winsize termsize; ioctl(fileno(stdout), TIOCGWINSZ, &termsize);
 
 	uint16_t dir_argc = argc<=1 ? 1 : parse_arguments(argc, argv);
-	#ifdef DEBUG
+	#ifndef NDEBUG
 	printf("args: %b\nsize arg: %b\n", args, SIZE_ARG(args));
 	#endif
 
