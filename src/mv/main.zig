@@ -1,10 +1,4 @@
-const c = @cImport({
-    @cInclude("stdio.h");
-    @cInclude("stdlib.h");
-    @cInclude("move.c");
-    @cInclude("string.h");
-    @cInclude("../colors.h");
-});
+const c = @import("c");
 const std = @import("std");
 const mem = std.mem;
 
@@ -59,13 +53,13 @@ fn parse_args() !move_args {
 pub fn main() u8 {
     var files: move_args = parse_args() catch |err| {
         if (err == error.OutOfMemory) {
-            _ = c.escape_code(c.stderr, c.RED);
+            _ = c.escape_code(c.stderr(), c.RED);
             _ = c.printf("Could not allocate sufficient memory for paths!\n");
         } else {
-            _ = c.escape_code(c.stderr, c.YELLOW);
+            _ = c.escape_code(c.stderr(), c.YELLOW);
             _ = c.printf("You need to specify a source path and destination path!\n");
         }
-        _ = c.escape_code(c.stderr, c.RESET);
+        _ = c.escape_code(c.stderr(), c.RESET);
         // gp_alloc.deinit();
         return 1;
     };
