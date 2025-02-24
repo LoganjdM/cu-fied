@@ -49,7 +49,7 @@ pub fn build(b: *std.Build) void {
     const fmt_step = b.step("fmt", "Format all zig code");
     const check_fmt_step = b.step("check-fmt", "Check formatting of all zig code");
 
-    const fmt_paths = .{ "src", "build.zig" };
+    const fmt_paths = .{ "src", "build.zig", "build.zig.zon" };
     const fmt = b.addFmt(.{ .paths = &fmt_paths });
     fmt_step.dependOn(&fmt.step);
 
