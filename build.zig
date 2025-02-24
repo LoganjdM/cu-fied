@@ -23,6 +23,7 @@ pub fn build(b: *std.Build) void {
         .file = b.path("src/ls.c"),
         .flags = c_flags,
     });
+    b.installArtifact(lsf_exe);
 
     const lsf_exe_check = b.addExecutable(.{
         .name = "lsf",
