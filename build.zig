@@ -6,25 +6,43 @@ pub fn build(b: *std.Build) void {
         .abi = if (builtin.target.os.tag == .linux) .musl else null,
     } });
     const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseFast });
+    const c_flags = if (b.release_mode == .off)
+        &[_][]const u8{ "-std=c23", "-g", "-D_DEFAULT_SOURCE" }
+    else
+        &[_][]const u8{ "-std=c23", "-fstack-protector-all", "-D_DEFAULT_SOURCE" };
 
-    // LSF executable
-    const lsf = b.addExecutable(.{
+    // LSF
+    const lsf_exe = b.addExecutable(.{
         .name = "lsf",
         .target = target,
         .optimize = optimize,
         .link_libc = true,
     });
 
-    // Add C source with appropriate flags
-    const c_flags = if (b.release_mode == .off)
-        &[_][]const u8{ "-std=c23", "-g", "-D_DEFAULT_SOURCE" }
-    else
-        &[_][]const u8{ "-std=c23", "-fstack-protector-all", "-D_DEFAULT_SOURCE" };
-
-    lsf.addCSourceFile(.{
+    lsf_exe.addCSourceFile(.{
         .file = b.path("src/ls.c"),
         .flags = c_flags,
     });
 
-    b.installArtifact(lsf);
+    const lsf_exe_check = b.addExecutable(.{
+        .name = "lsf",
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+    lsf_exe_check.addCSourceFile(.{
+        .file = b.path("src/ls.c"),
+        .flags = c_flags,
+    });
+
+    const lsf_check = b.step("check-lsf", "Check if LSF compiles");
+    lsf_check.dependOn(&lsf_exe_check.step);
+
+    const run_exe = b.addRunArtifact(lsf_exe);
+    const run_step = b.step("run-lsf", "Run LSF");
+    run_step.dependOn(&run_exe.step);
+
+    // Global
+    const check = b.step("check", "Check if all apps compile");
+    check.dependOn(lsf_check);
 }
