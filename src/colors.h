@@ -13,7 +13,6 @@
 
 #define RESET "\x1b[0m"
 
-
 const char* escape_code(FILE* fp, const char ansi[5]) {
 	if(isatty(fileno(fp))) {
 		return ansi;

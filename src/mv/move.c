@@ -22,7 +22,7 @@ uint16_t copy(const char* src, const char* dest) {
 			return files_copied;
 		}
 	}
-	
+
 	if(S_ISDIR(st.st_mode) && !(move_args & MOVE_ARG_RECURSIVE)) {
 		if(!(move_args & MOVE_ARG_RECURSIVE)) {
 			errno = EINVAL;

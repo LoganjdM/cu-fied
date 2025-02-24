@@ -237,7 +237,6 @@ uint16_t parse_arguments(const int argc, char** argv) {
 		old_unit = 'K'; \
 }
 
-
 // i hate even simple conversion math //
 char simplified_fsize(uint32_t fsize, float* readable_fsize) {
 	*readable_fsize = 0;
