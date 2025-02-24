@@ -1,7 +1,9 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const Build = std.Build;
 
-pub fn build(b: *std.Build) void {
+pub fn build(b: *Build) void {
+    // General options
     const target = b.standardTargetOptions(.{ .default_target = .{
         .abi = if (builtin.target.os.tag == .linux) .musl else null,
     } });
@@ -50,7 +52,6 @@ pub fn build(b: *std.Build) void {
 
     // MVF
     const mvf_main = b.path("src/mv/main.zig");
-
     const mvf_translate_c = b.addTranslateC(.{
         .root_source_file = b.path("src/mv/c.h"),
         .target = target,
