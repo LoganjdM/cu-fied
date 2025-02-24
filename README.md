@@ -11,7 +11,7 @@ With that out of the way, you only need these dependencies:
 
 - [Zig](https://ziglang.org/) 0.14.0 or later (Zig 0.14.0 is needed for proper C23 support. Notably, it’s not stable yet, but it will be within a week or two.)
 
-## Helpful commands
+### Helpful commands
 
 ```sh
 # Build the project
