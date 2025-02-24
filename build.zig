@@ -38,9 +38,9 @@ pub fn build(b: *std.Build) void {
     const lsf_check = b.step("check-lsf", "Check if LSF compiles");
     lsf_check.dependOn(&lsf_exe_check.step);
 
-    const run_exe = b.addRunArtifact(lsf_exe);
-    const run_step = b.step("run-lsf", "Run LSF");
-    run_step.dependOn(&run_exe.step);
+    const run_lsf_exe = b.addRunArtifact(lsf_exe);
+    const run_lsf = b.step("run-lsf", "Run LSF");
+    run_lsf.dependOn(&run_lsf_exe.step);
 
     // Global
     const check = b.step("check", "Check if all apps compile");
