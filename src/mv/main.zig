@@ -1,9 +1,7 @@
 const c = @import("c");
 const std = @import("std");
 const mem = std.mem;
-
-var gp_alloc = std.heap.GeneralPurposeAllocator(.{}){};
-const gpa = gp_alloc.allocator();
+const Allocator = std.mem.Allocator;
 
 const move_args = struct {
     dest: [*c]u8,
@@ -19,7 +17,7 @@ const move_args = struct {
     }
 };
 
-fn parse_args() !move_args {
+fn parse_args(allocator: Allocator) !move_args {
     var params: [][*c]u8 = undefined;
     var param_count: u32 = 0;
     var exe_call: bool = true;
@@ -30,7 +28,7 @@ fn parse_args() !move_args {
         }
         if (arg[0] != '-') {
             // FIXME: mem leak if fail //
-            params[param_count] = try gpa.create(u8);
+            params[param_count] = try allocator.create(u8);
             params[param_count] = arg;
             _ = c.printf("hi\n");
             param_count += 1;
@@ -43,7 +41,7 @@ fn parse_args() !move_args {
         return error.InvalidArgs;
     }
     // FIXME: mem leak if fail //
-    var dest: [*c]u8 = try gpa.create(u8);
+    var dest: [*c]u8 = try allocator.create(u8);
     dest = c.strcpy(dest, params[param_count]);
     var result: move_args = move_args{ .dest = dest, .src = params, .pos = param_count };
     _ = c.printf("%s %s", result.unwind(), result.dest);
@@ -51,7 +49,11 @@ fn parse_args() !move_args {
 }
 
 pub fn main() u8 {
-    var files: move_args = parse_args() catch |err| {
+    var gpa = std.heap.DebugAllocator(.{}).init;
+    const allocator = gpa.allocator();
+    defer _ = gpa.deinit();
+
+    var files: move_args = parse_args(allocator) catch |err| {
         if (err == error.OutOfMemory) {
             _ = c.escape_code(c.stderr(), c.RED);
             _ = c.printf("Could not allocate sufficient memory for paths!\n");
@@ -60,7 +62,6 @@ pub fn main() u8 {
             _ = c.printf("You need to specify a source path and destination path!\n");
         }
         _ = c.escape_code(c.stderr(), c.RESET);
-        // gp_alloc.deinit();
         return 1;
     };
 
@@ -69,6 +70,5 @@ pub fn main() u8 {
         _ = c.printf("mv %s %s\n", src, files.dest);
         src = files.unwind();
     }
-    // gp_alloc.deinit();
     return 0;
 }
