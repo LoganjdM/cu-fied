@@ -45,4 +45,14 @@ pub fn build(b: *std.Build) void {
     // Global
     const check = b.step("check", "Check if all apps compile");
     check.dependOn(lsf_check);
+
+    const fmt_step = b.step("fmt", "Format all zig code");
+    const check_fmt_step = b.step("check-fmt", "Check formatting of all zig code");
+
+    const fmt_paths = .{ "src", "build.zig" };
+    const fmt = b.addFmt(.{ .paths = &fmt_paths });
+    fmt_step.dependOn(&fmt.step);
+
+    const check_fmt = b.addFmt(.{ .paths = &fmt_paths, .check = true });
+    check_fmt_step.dependOn(&check_fmt.step);
 }
