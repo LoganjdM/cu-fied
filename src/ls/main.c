@@ -9,7 +9,7 @@
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 
-#include "colors.h"
+#include "../colors.h"
 #include "../app_info.h"
 
 #define MUL_NO_OVERFLOW ((size_t)1 << (sizeof(size_t) * 4))
@@ -180,7 +180,7 @@ uint16_t parse_arguments(const int argc, char** argv) {
 		} else if(!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
 			const char help[] = {
 				#ifdef __has_embed
-				#embed "../docs/lshelp.txt"
+				#embed "../../docs/lshelp.txt"
 				, '\0'
 				#else
 				#warning "You need a modern C compiler like Clang 9 or GCC15.\nTruthfully anything with #embed works"

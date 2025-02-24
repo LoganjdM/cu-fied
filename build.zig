@@ -12,6 +12,7 @@ pub fn build(b: *std.Build) void {
         &[_][]const u8{ "-std=c23", "-fstack-protector-all", "-D_DEFAULT_SOURCE" };
 
     // LSF
+    const lsf_main = b.path("src/ls/main.c");
     const lsf_exe = b.addExecutable(.{
         .name = "lsf",
         .target = target,
@@ -20,7 +21,7 @@ pub fn build(b: *std.Build) void {
     });
 
     lsf_exe.addCSourceFile(.{
-        .file = b.path("src/ls.c"),
+        .file = lsf_main,
         .flags = c_flags,
     });
     b.installArtifact(lsf_exe);
@@ -32,7 +33,7 @@ pub fn build(b: *std.Build) void {
         .link_libc = true,
     });
     lsf_exe_check.addCSourceFile(.{
-        .file = b.path("src/ls.c"),
+        .file = lsf_main,
         .flags = c_flags,
     });
 
