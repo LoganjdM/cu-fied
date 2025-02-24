@@ -17,7 +17,7 @@ const move_args = struct {
     }
 };
 
-fn parse_args(allocator: Allocator) !move_args {
+fn parseArgs(allocator: Allocator) !move_args {
     var params: [][*c]u8 = undefined;
     var param_count: u32 = 0;
     var exe_call: bool = true;
@@ -53,7 +53,7 @@ pub fn main() u8 {
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
-    var files: move_args = parse_args(allocator) catch |err| {
+    var files: move_args = parseArgs(allocator) catch |err| {
         if (err == error.OutOfMemory) {
             _ = c.escape_code(c.stderr(), c.RED);
             _ = c.printf("Could not allocate sufficient memory for paths!\n");
