@@ -60,7 +60,7 @@ pub fn main() u8 {
     var files: move_args = parse_args() catch |err| {
         if (err == error.OutOfMemory) {
             _ = c.escape_code(c.stderr, c.RED);
-            _ = c.printf("Could not allocate suffiecient memory for paths!\n");
+            _ = c.printf("Could not allocate sufficient memory for paths!\n");
         } else {
             _ = c.escape_code(c.stderr, c.YELLOW);
             _ = c.printf("You need to specify a source path and destination path!\n");
