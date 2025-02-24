@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <dirent.h>
+// #include <errno.h>
 #include <string.h>
 #include <stdint.h>
 #include <sys/stat.h>
@@ -11,23 +12,35 @@
 #include "colors.h"
 #include "../app_info.h"
 
-// Include this define if you are using zig cc, idk somethin's up with it //
-// #define reallocarray(ptr, elements, size) realloc(ptr, elements*size)
+#define MUL_NO_OVERFLOW ((size_t)1 << (sizeof(size_t) * 4))
+void *reallocarray(void *optr, size_t nmemb, size_t size) {
+	if ((nmemb >= MUL_NO_OVERFLOW || size >= MUL_NO_OVERFLOW) &&
+			nmemb > 0 && SIZE_MAX / nmemb < size) {
+		// errno = ENOMEM;
+		return NULL;
+	}
+	return realloc(optr, size * nmemb);
+}
+
+void* mempcpy(void *dest, const void *src, size_t n) {
+	memcpy(dest, src, n);
+	return (char*)dest + n;
+}
 
 // the ENTIRE reason for this is jsut cuz i thought itd be unique and wanted to see if i could do it //
 // it turned out to be not that bad and I auctually quite liked using it //
 uint16_t args = 0b0;
 
 // booleans //
-#define ARG_DOT_DIRS     0b1
-#define ARG_DOT_FILES    0b10
-#define ARG_UNSORTED     0b100
+#define ARG_DOT_DIRS 0b1
+#define ARG_DOT_FILES 0b10
+#define ARG_UNSORTED 0b100
 #define ARG_NO_NERDFONTS 0b1000
-#define ARG_FPERMS       0b1000000
-#define ARG_DIR_CONTS    0b10000000
+#define ARG_FPERMS 0b1000000
+#define ARG_DIR_CONTS 0b10000000
 // u2 int //
 #define SIZE_ARG(args) (((args) << 25)) >> 29
-#define ARG_SIZE_NONE    0b000000
+#define ARG_SIZE_NONE	0b000000
 
 struct file {
 	char name[256];
@@ -74,8 +87,8 @@ struct file* query_files(const char* dir, uint8_t* longest_fname, uint32_t* larg
 			return nullptr;
 		} *largest_fsize = 0; *longest_fname = 0;
 	}
-	
-	char true_fname[strlen(dir)+257] = {}; 
+
+	char true_fname[strlen(dir)+257] = {};
  	struct stat st; struct dirent* dp;
  	uint16_t i;
 	for(i=0;(dp=readdir(dfd))!=nullptr;++i) {
@@ -98,11 +111,11 @@ struct file* query_files(const char* dir, uint8_t* longest_fname, uint32_t* larg
 
 		sprintf(true_fname, "%s/%s", dir, dp->d_name);
 		stat(true_fname, &st);
-		
+
 		files[i].stat = st.st_mode;
 		// TODO: change to blocks //
 		if(!S_ISDIR(st.st_mode)) {
-			files[i].size = (SIZE_ARG(args)==1)  ? st.st_size : st.st_blocks;
+			files[i].size = (SIZE_ARG(args)==1) ? st.st_size : st.st_blocks;
 		} else {
 			files[i].size = dir_contents(true_fname, SIZE_ARG(args)==1);
 		}
@@ -112,7 +125,7 @@ struct file* query_files(const char* dir, uint8_t* longest_fname, uint32_t* larg
 		uint8_t fname = (uint8_t)strlen(dp->d_name);
 		if(fname > *longest_fname) *longest_fname = fname;
 	}
-	
+
 	closedir(dfd);
 	*fcount = i;
 	return files;
@@ -271,11 +284,11 @@ const char* nerdfont_icon(const struct file finfo) {
 	if(args & ARG_NO_NERDFONTS) {
 		return "\0";
 	}
-	
+
 	if(finfo.stat & S_IFDIR) return " ";
 	else if(finfo.stat & S_IXUSR) return " ";
 	else { return " "; }
-} 
+}
 
 typedef struct {
 	// fuck sake clang //
@@ -285,7 +298,7 @@ typedef struct {
 } stringbuilder_t;
 
 // returns bytes moved //
-static inline size_t sb_append(stringbuilder_t* sb, const char* appendee) {
+size_t sb_append(stringbuilder_t* sb, const char* appendee) {
 	const size_t appendlen = strlen(appendee);
 	// FIXME: this leaks memory. in a fast and quick to kill itself program like this it doesnt matter but its unideal :\ //
 	// to qoute Clive Thompson: "Of course it leaks." "The ultimate garbage collection is done without programmer intervention" //
@@ -303,7 +316,7 @@ static inline size_t sb_append(stringbuilder_t* sb, const char* appendee) {
 // zamn i was right on the string builder, 3 times faster, 1.7 ms mean //
 void list_files(const struct file* files, const uint16_t longest_fdescriptor, const uint16_t fcount, const struct winsize termsize, bool (*condition)(mode_t)) {
 	static uint8_t files_printed = 0;
-	uint8_t files_per_row =  termsize.ws_col / longest_fdescriptor;
+	uint8_t files_per_row = termsize.ws_col / longest_fdescriptor;
 	for(uint16_t i=0;i<fcount;++i) {
 		if(condition(files[i].stat)) {
 			continue;
@@ -324,9 +337,9 @@ void list_files(const struct file* files, const uint16_t longest_fdescriptor, co
 
 		fdescriptor_len += sb_append(&sb, files[i].name);
 		fdescriptor_len += sb_append(&sb, " ");
-		
+
 		sb_append(&sb, escape_code(stdout, RESET));
-		
+
 		uint8_t size_arg = SIZE_ARG(args);
 		if(size_arg) {
 			if(S_ISDIR(files[i].stat)) {
@@ -355,8 +368,8 @@ void list_files(const struct file* files, const uint16_t longest_fdescriptor, co
 					sprintf(bytes, "%.1f %cB) ", hr_size, unit);
 					fdescriptor_len += sb_append(&sb, bytes);
 				}
-			}	
-			
+			}
+
 		}
 		dont_list_directories:
 
@@ -394,7 +407,7 @@ uint16_t get_longest_fdescriptor(const uint8_t longest_fname, const uint32_t lar
 	 			result += sprintf(largest_size, "%.1f XiB", hr_size);
 	 		} else {
 	 			result += sprintf(largest_size, "%.1f XB", hr_size);
-	 		}		 
+	 		}
 	} if(size_arg) {
 		result += /*( ) */4;
 		if(args & ARG_DIR_CONTS) result += /*Contains */9;
@@ -403,9 +416,6 @@ uint16_t get_longest_fdescriptor(const uint8_t longest_fname, const uint32_t lar
 	// TODO: //
 	if(args & ARG_FPERMS) result += /*<drwxr-xr-x> */13;
 	if(!(args & ARG_NO_NERDFONTS)) result += /* */2;
-	#ifndef NDEBUG
-	printf("longest file descriptor is %u.\n", result);
-	#endif
 	return result;
 }
 
@@ -464,7 +474,7 @@ int main(int argc, char** argv) {
 
 		fcount = 0; longest_fname = 0;
 		files = query_files(argv[i], &longest_fname, &largest_fsize, &fcount, files);
-		LIST_FILES_MAIN(args & ARG_UNSORTED, files, longest_fname, largest_fsize, fcount, termsize);		
+		LIST_FILES_MAIN(args & ARG_UNSORTED, files, longest_fname, largest_fsize, fcount, termsize);
 		dir_argc--;
 		putchar('\n');
 		if(dir_argc>1) putchar('\n');

@@ -1,5 +1,2 @@
 .zig-cache
-bin
-dev
-nob
-nob.old
+zig-out
