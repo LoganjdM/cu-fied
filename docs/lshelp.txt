@@ -1,16 +1,16 @@
 Usage: lsf [OPTION]... [FILE]...
 List information about the FILEs (the current directory by default) in a "fancified" manner.
-Prints directories first if -U or --unsorted is not specified. 
+Prints directories first if -U or --unsorted is not specified.
 Color is not printed if stdout is not a tty.
 
 Arguments range from visual preferences to sorting or information to display on files.
      -a, --all                 do not ignore entries starting with `.`
      -f, --full                acts as the same as `-a` or `--all`
      -A, --almost-all          prints dot files but excludes `.` and `..`
-     -d, --dot-dirs            does not exclude `.` and `..` using this with `-A` or `--almost-all` 
+     -d, --dot-dirs            does not exclude `.` and `..` using this with `-A` or `--almost-all`
                                will act as `-f` or `-a`
-                               
-     -U, --unsorted            does seperate the printing of directories and regular files.
+
+     -U, --unsorted            does separate the printing of directories and regular files.
 
      -hr, --human-readable     specifies how to display file size: `none`, `bytes`, `binary`, or `si`
                                defaults to `none`, and also does not display size of directories.
@@ -22,7 +22,7 @@ Arguments range from visual preferences to sorting or information to display on 
      -c, --dir-contents        when cmobined with `-hr` or `--human-readable`, lists the size of every file
                                in a directory added together.
 
-     -nf, --no-nerdfonts       does not use nerdfonts in output (not reccomended) (its not pwetty).
+     -nf, --no-nerdfonts       does not use nerdfonts in output (not recommended) (its not pwetty).
      -fc, --force-color        TO BE ADDED
 
      -g, --uid-gid             lists the uid and gid of files. assimilar to `ls -n` or `ls -l`.

@@ -27,7 +27,7 @@ void* mempcpy(void *dest, const void *src, size_t n) {
 	return (char*)dest + n;
 }
 
-// the ENTIRE reason for this is jsut cuz i thought itd be unique and wanted to see if i could do it //
+// the ENTIRE reason for this is just cuz i thought itd be unique and wanted to see if i could do it //
 // it turned out to be not that bad and I auctually quite liked using it //
 uint16_t args = 0b0;
 
@@ -131,7 +131,7 @@ struct file* query_files(const char* dir, uint8_t* longest_fname, uint32_t* larg
 	return files;
 }
 
-// returns the amount of auctual non-argument entires there are so we can just skip past em //
+// returns the amount of auctual non-argument entries there are so we can just skip past em //
 uint16_t parse_arguments(const int argc, char** argv) {
 	int dir_argc = 0;
 	for(int i=0;i<argc;++i) {
@@ -196,7 +196,7 @@ uint16_t parse_arguments(const int argc, char** argv) {
 			args |= ARG_FPERMS;
 		} else {
 			// FIXME: this causes segfault on dev build and only dev build, on only GCC wtfd? //
-			// for some reason we need 2 seperate buffers, and I have no clue why //
+			// for some reason we need 2 separate buffers, and I have no clue why //
 			char humanreadable_arg[strlen(argv[i])] = {}; char hr_arg[strlen(argv[i])] = {};
 			if(!strcmp(strncpy(humanreadable_arg, argv[i], 17), "--human-readable=")) {
 				// atoi can fail here but it returns with 0 so if your wrong we assume default //
@@ -301,8 +301,8 @@ typedef struct {
 size_t sb_append(stringbuilder_t* sb, const char* appendee) {
 	const size_t appendlen = strlen(appendee);
 	// FIXME: this leaks memory. in a fast and quick to kill itself program like this it doesnt matter but its unideal :\ //
-	// to qoute Clive Thompson: "Of course it leaks." "The ultimate garbage collection is done without programmer intervention" //
-	// uhmmm... that qoute was from him making a missile... but the point still stands, the OS will free everything for us anyways //
+	// to quote Clive Thompson: "Of course it leaks." "The ultimate garbage collection is done without programmer intervention" //
+	// uhmmm... that quote was from him making a missile... but the point still stands, the OS will free everything for us anyways //
 	char* newstr = (char*)realloc(sb->str, sb->len+appendlen+1); // +1 for \0
 	if(!newstr) return 0;
 
@@ -377,7 +377,7 @@ void list_files(const struct file* files, const uint16_t longest_fdescriptor, co
 			sb_append(&sb, " ");
 		}
 		files_printed++;
-		// i tried doing this based off bytes printed, gave issues. also same with using `i % files_per_row` as it gave some segfault i dont undestand to be real with you //
+		// i tried doing this based off bytes printed, gave issues. also same with using `i % files_per_row` as it gave some segfault i dont understand to be real with you //
 		if(files_printed >= files_per_row) {
 			printf("%s\n", sb.str); files_printed = 0;
 		} else printf("%s", sb.str);
