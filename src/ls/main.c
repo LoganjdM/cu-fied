@@ -17,7 +17,7 @@ void *reallocarray(void *optr, size_t nmemb, size_t size) {
 	if ((nmemb >= MUL_NO_OVERFLOW || size >= MUL_NO_OVERFLOW) &&
 			nmemb > 0 && SIZE_MAX / nmemb < size) {
 		// errno = ENOMEM;
-		return NULL;
+		return nullptr;
 	}
 	return realloc(optr, size * nmemb);
 }
@@ -302,11 +302,13 @@ size_t sb_append(stringbuilder_t* sb, const char* appendee) {
 	// FIXME: this leaks memory. in a fast and quick to kill itself program like this it doesnt matter but its unideal :\ //
 	// to quote Clive Thompson: "Of course it leaks." "The ultimate garbage collection is done without programmer intervention" //
 	// uhmmm... that quote was from him making a missile... but the point still stands, the OS will free everything for us anyways //
-	char* newstr = (char*)realloc(sb->str, sb->len+appendlen+1); // +1 for \0
-	if(!newstr) return 0;
+	// char* newstr = (char*)realloc(sb->str, sb->len+appendlen+1); // +1 for \0
+	// if(!newstr) return 0;
 
-	sb->last = mempcpy(sb->last, appendee, appendlen);
+	// sb->last = mempcpy(sb->last, appendee, appendlen);
 	sb->len += appendlen;
+	// zig breaks this somehow so just use printf for now //
+	printf("%s", appendee);
 
 	// *((char*)sb->last) = '\0';
 	return appendlen;
