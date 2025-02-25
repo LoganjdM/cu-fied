@@ -47,6 +47,7 @@ pub fn build(b: *Build) void {
     lsf_check.dependOn(&lsf_exe_check.step);
 
     const run_lsf_exe = b.addRunArtifact(lsf_exe);
+    if (b.args) |args| run_lsf_exe.addArgs(args);
     const run_lsf = b.step("run-lsf", "Run LSF");
     run_lsf.dependOn(&run_lsf_exe.step);
 
@@ -86,6 +87,7 @@ pub fn build(b: *Build) void {
     mvf_check.dependOn(&mvf_exe_check.step);
 
     const run_mvf_exe = b.addRunArtifact(mvf_exe);
+    if (b.args) |args| run_mvf_exe.addArgs(args);
     const run_mvf = b.step("run-mvf", "Run MVF");
     run_mvf.dependOn(&run_mvf_exe.step);
 
