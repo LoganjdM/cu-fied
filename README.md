@@ -1,4 +1,4 @@
-# *C*ore*u*tils fanci*fied* (Cu-fied)
+# **C**ore**u**tils fanci**fied** (Cu-fied)
 
 Cu-fied (_pronounced /kjufaɪd/_ ) is a rewrite of [GNU's Coreutils](https://www.gnu.org/software/coreutils/) to focus on being "fancified" rather than being machine-readable.
 (Fancier in my subjective opinion.)
