@@ -13,6 +13,9 @@ pub fn build(b: *Build) void {
     else
         &[_][]const u8{ "-std=c23", "-fstack-protector-all", "-D_DEFAULT_SOURCE" };
 
+    // Dependencies
+    const clap = b.dependency("clap", .{});
+
     // LSF
     const lsf_main = b.path("src/ls/main.c");
     const lsf_exe = b.addExecutable(.{
@@ -53,12 +56,6 @@ pub fn build(b: *Build) void {
 
     // MVF
     const mvf_main = b.path("src/mv/main.zig");
-    const mvf_translate_c = b.addTranslateC(.{
-        .root_source_file = b.path("src/mv/c.h"),
-        .target = target,
-        .optimize = optimize,
-        .link_libc = true,
-    });
 
     const mvf_exe = b.addExecutable(.{
         .name = "mvf",
@@ -69,7 +66,7 @@ pub fn build(b: *Build) void {
             .link_libc = true,
         }),
     });
-    mvf_exe.root_module.addImport("c", mvf_translate_c.createModule());
+    mvf_exe.root_module.addImport("clap", clap.module("clap"));
     b.installArtifact(mvf_exe);
 
     const mvf_exe_check = b.addExecutable(.{
@@ -81,7 +78,7 @@ pub fn build(b: *Build) void {
             .link_libc = true,
         }),
     });
-    mvf_exe_check.root_module.addImport("c", mvf_translate_c.createModule());
+    mvf_exe_check.root_module.addImport("clap", clap.module("clap"));
 
     const mvf_check = b.step("check-mvf", "Check if MVF compiles");
     mvf_check.dependOn(&mvf_exe_check.step);

@@ -6,7 +6,12 @@
 
     .minimum_zig_version = "0.14.0-dev.3298+6fe1993d8",
 
-    .dependencies = .{},
+    .dependencies = .{
+        .clap = .{
+            .url = "git+https://github.com/Hejsil/zig-clap#a39ab2595d685526a6fb13f9caba7317a2686a7d",
+            .hash = "1220065222573a7108ef7113aac0a076c785f70aedcc8667f55886b3c0aea6a3ead8",
+        },
+    },
     .paths = .{
         "build.zig",
         "build.zig.zon",
