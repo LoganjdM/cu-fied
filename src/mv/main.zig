@@ -27,7 +27,7 @@ fn move(allocator: Allocator, sources: []const []const u8, destination: []const 
     }
 }
 
-pub fn main() u8 {
+pub fn main() !u8 {
     var gpa = std.heap.DebugAllocator(.{}).init;
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
@@ -37,25 +37,21 @@ pub fn main() u8 {
         .diagnostic = &diag,
         .allocator = allocator,
     }) catch |err| {
-        diag.report(std.io.getStdErr().writer(), err) catch {};
+        try diag.report(std.io.getStdErr().writer(), err);
         return 1;
     };
     defer res.deinit();
 
     if (res.args.help != 0) {
-        clap.help(std.io.getStdErr().writer(), clap.Help, &params, .{}) catch {
-            return 1;
-        };
+        try clap.help(std.io.getStdErr().writer(), clap.Help, &params, .{});
 
         return 0;
     }
 
     const sources = res.positionals[0];
-    const destination = res.positionals[1] orelse return 1;
+    const destination = res.positionals[1] orelse return error.NoDestination;
 
-    move(allocator, sources, destination) catch |err| switch (err) {
-        else => return 1,
-    };
+    try move(allocator, sources, destination);
 
     return 0;
 }
