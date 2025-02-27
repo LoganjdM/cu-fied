@@ -12,21 +12,6 @@
 #include "../colors.h"
 #include "../app_info.h"
 
-#define MUL_NO_OVERFLOW ((size_t)1 << (sizeof(size_t) * 4))
-void *reallocarray(void *optr, size_t nmemb, size_t size) {
-	if ((nmemb >= MUL_NO_OVERFLOW || size >= MUL_NO_OVERFLOW) &&
-			nmemb > 0 && SIZE_MAX / nmemb < size) {
-		// errno = ENOMEM;
-		return nullptr;
-	}
-	return realloc(optr, size * nmemb);
-}
-
-void* mempcpy(void *dest, const void *src, size_t n) {
-	memcpy(dest, src, n);
-	return (char*)dest + n;
-}
-
 // the ENTIRE reason for this is just cuz i thought itd be unique and wanted to see if i could do it //
 // it turned out to be not that bad and I auctually quite liked using it //
 uint16_t args = 0b0;
@@ -307,8 +292,6 @@ size_t sb_append(stringbuilder_t* sb, const char* appendee) {
 
 	sb->last = mempcpy(sb->last, appendee, appendlen);
 	sb->len += appendlen;
-	// zig breaks this somehow so just use printf for now //
-	// printf("%s", appendee);
 
 	*((char*)sb->last) = '\0';
 	return appendlen;
