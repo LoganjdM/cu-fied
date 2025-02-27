@@ -5,7 +5,7 @@ Cu-fied (_pronounced /kjufaɪd/_ ) is a rewrite of [GNU's Coreutils](https://www
 
 ## Building from source
 
-First off, it is primarily designed for x86\__64_ linux, although it _is_ tested to work with macOS. It most definitely will not work on Windows due using `unistd.h`. Supporting Windows is not on the roadmap, although PRs to improve cross-platform compatibility are welcome.
+First off, it is primarily designed for x86_64 GNU/linux, although it _is_ tested to work with macOS. It most definitely will not work on Windows due using `unistd.h`. Supporting Windows is not on the roadmap, although PRs to improve cross-platform compatibility are welcome.
 
 With that out of the way, you only need these dependencies:
 

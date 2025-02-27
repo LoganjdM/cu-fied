@@ -5,7 +5,7 @@ const Build = std.Build;
 pub fn build(b: *Build) void {
     // General options
     const target = b.standardTargetOptions(.{ .default_target = .{
-        .abi = if (builtin.target.os.tag == .linux) .musl else null,
+        .abi = if (builtin.target.os.tag == .linux) .gnu else null,
     } });
     const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseFast });
     const c_flags = if (b.release_mode == .off)
