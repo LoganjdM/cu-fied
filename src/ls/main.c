@@ -12,7 +12,7 @@
 #include "../colors.h"
 #include "../app_info.h"
 
-#if __APPLE__ //fucksake
+#if defined(__APPLE__) && TARGET_OS_MAC==1 //fucksake
 #define MUL_NO_OVERFLOW ((size_t)1 << (sizeof(size_t) * 4))
 void *reallocarray(void *optr, size_t nmemb, size_t size) {
 	if ((nmemb >= MUL_NO_OVERFLOW || size >= MUL_NO_OVERFLOW) &&
@@ -134,6 +134,7 @@ struct file* query_files(const char* dir, uint8_t* longest_fname, uint32_t* larg
 }
 
 // returns the amount of auctual non-argument entries there are so we can just skip past em //
+#define ISARG(arg, shortstr, longstr) !strcmp(arg, shortstr) || !strcmp(arg, longstr)
 uint16_t parse_arguments(const int argc, char** argv) {
 	int dir_argc = 0;
 	for(int i=0;i<argc;++i) {
@@ -142,17 +143,17 @@ uint16_t parse_arguments(const int argc, char** argv) {
 			continue;
 		}
 		// TODO: hashmap //
-		if(!strcmp(argv[i], "-a") || !strcmp(argv[i], "--all") || !strcmp(argv[i], "-f") || !strcmp(argv[i], "--full")) {
+		if(ISARG(argv[i], "-a", "--all") || ISARG(argv[i], "-f", "--full")) {
 			args |= ARG_DOT_DIRS | ARG_DOT_FILES;
-		} else if(!strcmp(argv[i], "-A") || !strcmp(argv[i], "--almost-all")) {
+		} else if(ISARG(argv[i], "-A", "--almost-all")) {
 			args |= ARG_DOT_FILES;
-		} else if(!strcmp(argv[i], "-d") || !strcmp(argv[i], "--dot-dirs")) {
+		} else if(ISARG(argv[i], "-d", "--dot-dirs")) {
 			args |= ARG_DOT_DIRS;
-		} else if(!strcmp(argv[i], "-nf") || !strcmp(argv[i], "--no-nerdfonts")) {
+		} else if(ISARG(argv[i], "-nf", "--no-nerdfonts")) {
 			args |= ARG_NO_NERDFONTS;
-		} else if(!strcmp(argv[i], "-c") || !strcmp(argv[i], "--dir-contents")) {
+		} else if(ISARG(argv[i], "-c", "--dir-contents")) {
 			args |= ARG_DIR_CONTS;
-		} else if(!strcmp(argv[i], "-hr") || !strcmp(argv[i], "--human-readable")) {
+		} else if(ISARG(argv[i], "-hr", "--human-readable")) {
 			if(argv[i+1]==nullptr) {
 				print_escape_code(stderr, YELLOW);
 				fprintf(stderr, "\"%s\" is missing an argument on what type! (assumed none).\n", argv[i]); print_escape_code(stderr, RESET);
@@ -272,7 +273,7 @@ const char* fdescriptor_color(const mode_t fstat) {
 	return "\0";
 }
 
-// TODO: //
+// TODO: how tf does stat(1) format its readable access perms? //
 // uint8_t print_file_perms(const mode_t fstat) {
 // 	if(!(args & ARG_FPERMS)) {
 // 		return 0;
@@ -292,7 +293,6 @@ const char* nerdfont_icon(const struct file finfo) {
 }
 
 typedef struct {
-	// fuck sake clang //
 	char* str;
 	void* last;
 	size_t len;
@@ -301,13 +301,14 @@ typedef struct {
 // returns bytes moved //
 size_t sb_append(stringbuilder_t* sb, const char* appendee) {
 	const size_t appendlen = strlen(appendee);
-	// FIXME: this leaks memory. in a fast and quick to kill itself program like this it doesnt matter but its unideal :\ //
-	// to quote Clive Thompson: "Of course it leaks." "The ultimate garbage collection is done without programmer intervention" //
-	// uhmmm... that quote was from him making a missile... but the point still stands, the OS will free everything for us anyways //
-	char* newstr = (char*)realloc(sb->str, sb->len+appendlen+1); // +1 for \0
-	if(!newstr) return 0;
 
-	sb->last = mempcpy(sb->last, appendee, appendlen);
+	// TODO?: we should prob use realloc() but realloc was causing issues, so we just create an entirely new string //
+	char* newstr = (char*)malloc(sb->len+appendlen+1); // +1 for \0
+	if(!newstr) return 0;
+	strcpy(newstr, sb->str);
+	free(sb->str); sb->str = newstr;
+	
+	sb->last = mempcpy(sb->str+sb->len, appendee, appendlen);
 	sb->len += appendlen;
 
 	*((char*)sb->last) = '\0';
@@ -329,7 +330,6 @@ void list_files(const struct file* files, const uint16_t longest_fdescriptor, co
 			}
 		}
 
-		// uint16_t fdescriptor_len = print_file_perms(files[i].stat);
 		char* sb_str = (char*)malloc(1); // dont give a shit on size, just have the OS give us some memory block //
 		stringbuilder_t sb = {sb_str, (void*)sb_str, 0};
 		sb_append(&sb, fdescriptor_color(files[i].stat));
@@ -352,9 +352,10 @@ void list_files(const struct file* files, const uint16_t longest_fdescriptor, co
 				fdescriptor_len += sb_append(&sb, "(");
 			}
 			if(size_arg==1) {
-				char* bytes = "";
+				char* bytes = malloc(floor(log10(files[i].size))+1);
 				sprintf(bytes, "%u B)", files[i].size);
 				fdescriptor_len += sb_append(&sb, bytes);
+				free(bytes);
 			} else {
 				float hr_size = 0;
 				char unit = simplified_fsize(files[i].size, &hr_size);
