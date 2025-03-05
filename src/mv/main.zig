@@ -28,7 +28,7 @@ fn move(allocator: Allocator, sources: []const []const u8, destination: []const 
 }
 
 pub fn main() !u8 {
-    var gpa = std.heap.DebugAllocator(.{}).init;
+    var gpa: std.heap.DebugAllocator(.{}) = .init;
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 

@@ -5,7 +5,7 @@
     // This is a [Semantic Version](https://semver.org/).
     .version = "0.0.0",
 
-    .minimum_zig_version = "0.14.0-dev.3298+6fe1993d8",
+    .minimum_zig_version = "0.14.0",
 
     .dependencies = .{
         .clap = .{
