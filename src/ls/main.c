@@ -9,8 +9,15 @@
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 
+#ifndef __has_embed
+#	include <stdbool.h>
+#endif
+
 #include "../colors.h"
 #include "../app_info.h"
+#include "strbuild.h"
+#include "table.h"
+
 
 #if defined(__APPLE__) && TARGET_OS_MAC==1 //fucksake
 #define MUL_NO_OVERFLOW ((size_t)1 << (sizeof(size_t) * 4))
@@ -18,7 +25,7 @@ void *reallocarray(void *optr, size_t nmemb, size_t size) {
 	if ((nmemb >= MUL_NO_OVERFLOW || size >= MUL_NO_OVERFLOW) &&
 			nmemb > 0 && SIZE_MAX / nmemb < size) {
 		// errno = ENOMEM;
-		return nullptr;
+		return NULL;
 	}
 	return realloc(optr, size * nmemb);
 }
@@ -62,7 +69,7 @@ uint32_t dir_contents(const char* dir, const bool bytes) {
 	} uint32_t result = 0;
 	struct stat st; struct dirent* dp;
 	char true_fname[strlen(dir)+257] = {};
-	while((dp=readdir(dfd))!=nullptr) {
+	while((dp=readdir(dfd))!=NULL) {
 		sprintf(true_fname, "%s/%s", dir, dp->d_name);
 
 		stat(true_fname, &st);
@@ -79,21 +86,21 @@ struct file* query_files(const char* dir, uint8_t* longest_fname, uint32_t* larg
 	if(!dfd) {
 		print_escape_code(stderr, RED);
 		fprintf(stderr, "Failed to query files! (memory allocation failure!)\n"); print_escape_code(stderr, RESET);
-		return nullptr;
+		return NULL;
  	} uint16_t array_len = STARTING_LEN;
 	if(!files) {
 		if(!(files=calloc(array_len, sizeof(struct file)))) {
 			print_escape_code(stderr, RED);
 			fprintf(stderr, "Failed to query files! (memory allocation failure!)\n"); print_escape_code(stderr, RESET);
 			closedir(dfd);
-			return nullptr;
+			return NULL;
 		} *largest_fsize = 0; *longest_fname = 0;
 	}
 
 	char true_fname[strlen(dir)+257] = {};
  	struct stat st; struct dirent* dp;
  	uint16_t i;
-	for(i=0;(dp=readdir(dfd))!=nullptr;++i) {
+	for(i=0;(dp=readdir(dfd))!=NULL;++i) {
 		if(i>=array_len) {
 			if(((array_len*2)*sizeof(struct file)) < (array_len*sizeof(struct file))) {
 				print_escape_code(stderr, RED);
@@ -154,7 +161,7 @@ uint16_t parse_arguments(const int argc, char** argv) {
 		} else if(ISARG(argv[i], "-c", "--dir-contents")) {
 			args |= ARG_DIR_CONTS;
 		} else if(ISARG(argv[i], "-hr", "--human-readable")) {
-			if(argv[i+1]==nullptr) {
+			if(argv[i+1]==NULL) {
 				print_escape_code(stderr, YELLOW);
 				fprintf(stderr, "\"%s\" is missing an argument on what type! (assumed none).\n", argv[i]); print_escape_code(stderr, RESET);
 				return dir_argc;
@@ -181,15 +188,14 @@ uint16_t parse_arguments(const int argc, char** argv) {
 		} else if(!strcmp(argv[i], "-U") || !strcmp(argv[i], "--unsorted")) {
 			args |= ARG_UNSORTED;
 		} else if(!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
+			#ifdef __has_embed
 			const char help[] = {
-				#ifdef __has_embed
-				#embed "../../docs/lshelp.txt"
-				, '\0'
-				#else
-				#warning "You need a modern C compiler like Clang 9 or GCC15.\nTruthfully anything with #embed works"
-				'\0'
-				#endif
-			};
+			#	embed "../../docs/lshelp.txt"
+				, '\0'};
+			#else
+			const char help[] = "lsf was not compiled with a modern C compiler like Clang 9 or GCC15, and could not make use of `#embed` which is required for the help message!\n";
+			#endif
+			
 			puts(help);
 			exit(0);
 		} else if(!strcmp(argv[i], "-v") || !strcmp(argv[i], "--version")) {
@@ -292,29 +298,6 @@ const char* nerdfont_icon(const struct file finfo) {
 	else { return " "; }
 }
 
-typedef struct {
-	char* str;
-	void* last;
-	size_t len;
-} stringbuilder_t;
-
-// returns bytes moved //
-size_t sb_append(stringbuilder_t* sb, const char* appendee) {
-	const size_t appendlen = strlen(appendee);
-
-	// TODO?: we should prob use realloc() but realloc was causing issues, so we just create an entirely new string //
-	char* newstr = (char*)malloc(sb->len+appendlen+1); // +1 for \0
-	if(!newstr) return 0;
-	strcpy(newstr, sb->str);
-	free(sb->str); sb->str = newstr;
-	
-	sb->last = mempcpy(sb->str+sb->len, appendee, appendlen);
-	sb->len += appendlen;
-
-	*((char*)sb->last) = '\0';
-	return appendlen;
-}
-
 // zamn i was right on the string builder, 3 times faster, 1.7 ms mean //
 void list_files(const struct file* files, const uint16_t longest_fdescriptor, const uint16_t fcount, const struct winsize termsize, bool (*condition)(mode_t)) {
 	static uint8_t files_printed = 0;
@@ -330,8 +313,7 @@ void list_files(const struct file* files, const uint16_t longest_fdescriptor, co
 			}
 		}
 
-		char* sb_str = (char*)malloc(1); // dont give a shit on size, just have the OS give us some memory block //
-		stringbuilder_t sb = {sb_str, (void*)sb_str, 0};
+		strbuild_t sb = sb_new();
 		sb_append(&sb, fdescriptor_color(files[i].stat));
 		size_t fdescriptor_len = sb_append(&sb, nerdfont_icon(files[i]));
 		sb_append(&sb, escape_code(stdout, BOLD));
@@ -434,7 +416,7 @@ bool condition_unsorted(mode_t stat) { (void)stat; return false; }
 
 int main(int argc, char** argv) {
 	uint16_t fcount = 0; uint8_t longest_fname = 0; uint32_t largest_fsize = 0;
-	struct file* files = nullptr;
+	struct file* files = NULL;
 	struct winsize termsize; ioctl(fileno(stdout), TIOCGWINSZ, &termsize);
 
 	uint16_t dir_argc = argc<=1 ? 1 : parse_arguments(argc, argv);

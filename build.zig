@@ -1,8 +1,9 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const Build = std.Build;
+const proc = std.process;
 
-pub fn build(b: *Build) void {
+pub fn build(b: *Build) !void {
     // General options
     const target = b.standardTargetOptions(.{ .default_target = .{
         .abi = if (builtin.target.os.tag == .linux) .gnu else null,
@@ -17,7 +18,7 @@ pub fn build(b: *Build) void {
     const clap = b.dependency("clap", .{});
 
     // LSF
-    const lsf_main = b.path("src/ls/main.c");
+    const lsf_src_files = [_][]const u8{ "src/ls/main.c", "src/ls/strbuild.c", "src/ls/table.c"};
     const lsf_exe = b.addExecutable(.{
         .name = "lsf",
         .root_module = b.createModule(.{
@@ -27,8 +28,8 @@ pub fn build(b: *Build) void {
         }),
     });
 
-    lsf_exe.root_module.addCSourceFile(.{
-        .file = lsf_main,
+    lsf_exe.root_module.addCSourceFiles(.{
+        .files = &lsf_src_files,
         .flags = c_flags,
     });
     b.installArtifact(lsf_exe);
@@ -41,8 +42,8 @@ pub fn build(b: *Build) void {
             .link_libc = true,
         }),
     });
-    lsf_exe_check.root_module.addCSourceFile(.{
-        .file = lsf_main,
+    lsf_exe_check.root_module.addCSourceFiles(.{
+        .files = &lsf_src_files,
         .flags = c_flags,
     });
 
@@ -101,4 +102,29 @@ pub fn build(b: *Build) void {
 
     const check_fmt = b.addFmt(.{ .paths = &fmt_paths, .check = true });
     check_fmt_step.dependOn(&check_fmt.step);
+
+    // generate man pages //
+    const help2man = b.step("help2man", "Use GNU `help2man` to generate man pages.");
+	help2man.makeFn = run_help2man;
+}
+
+
+fn run_help2man(self: *Build.Step, opt: Build.Step.MakeOptions) !void {
+	_ = self; _ = opt;
+
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+   	defer std.debug.assert(gpa.deinit() == .ok);
+   	const alloc = gpa.allocator();
+   
+   	var help2man_result: proc.Child.RunResult = try proc.Child.run(.{
+		.allocator = alloc,
+		.argv = &[_][]const u8{"help2man", "zig-out/bin/lsf", "-o", "docs/lsf.1"}
+   	});
+   	alloc.free(help2man_result.stdout); alloc.free(help2man_result.stderr);
+   	
+	help2man_result = try proc.Child.run(.{
+		.allocator = alloc,
+		.argv = &[_][]const u8{"help2man", "zig-out/bin/mvf", "-o", "docs/mvf.1"}
+   	});
+   	alloc.free(help2man_result.stdout); alloc.free(help2man_result.stderr);	
 }
