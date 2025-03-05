@@ -46,7 +46,7 @@ jobs:
       - name: 🦎 Install Zig
         uses: mlugg/setup-zig@a67e68dc5c8281d9608136d3d7ca1b282213e4ac # v1.2.1
         with:
-          version: 0.14.0-dev.3298+6fe1993d8
+          version: 0.14.0-dev.3462+edabcf619
       - name: 🔧 Build
         run: zig build -Dtarget=${{ matrix.target }}
       - name: ✨ Verify formatting

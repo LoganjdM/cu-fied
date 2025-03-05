@@ -1,5 +1,6 @@
 .{
-    .name = "cu-fied",
+    .name = .cu_fied,
+    .fingerprint = 0xcd802fbd25db5f3e,
 
     // This is a [Semantic Version](https://semver.org/).
     .version = "0.0.0",
