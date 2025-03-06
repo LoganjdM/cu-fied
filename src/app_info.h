@@ -1,2 +1,2 @@
-const char vers_ls[] = "2.2.25";
-const char vers_mv[] = "0.2.25";
+// This is a [Semantic Version](https://semver.org/).
+const char vers[] = "0.0.0";

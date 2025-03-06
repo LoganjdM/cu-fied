@@ -199,7 +199,7 @@ uint16_t parse_arguments(const int argc, char** argv) {
 			puts(help);
 			exit(0);
 		} else if(!strcmp(argv[i], "-v") || !strcmp(argv[i], "--version")) {
-			puts(vers_ls);
+			puts(vers);
 			exit(0);
 		} else if(!strcmp(argv[i], "-g") || !strcmp(argv[i], "--uid-gid")) {
 			args |= ARG_FPERMS;
