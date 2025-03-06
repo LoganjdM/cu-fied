@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
+#include "util/mempcpy.h"
 
 typedef struct {
 	char* str;
@@ -16,7 +17,7 @@ size_t sb_append(strbuild_t* sb, const char* appendee) {
 	if(!newstr) return 0;
 	strcpy(newstr, sb->str);
 	free(sb->str); sb->str = newstr;
-	
+
 	sb->last = mempcpy(sb->str+sb->len, appendee, appendlen);
 	sb->len += appendlen;
 

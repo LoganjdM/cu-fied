@@ -17,14 +17,14 @@ pub fn build(b: *Build) !void {
     // Dependencies
     const clap = b.dependency("clap", .{});
 
-	// First update versioning's on the C side.. //
-	var fp: std.fs.File = try std.fs.cwd().openFile("src/app_info.h", .{ .mode = .write_only });
-	// TODO: get this to grab `.version` in build.zig.zon //
-	try fp.writer().print("// This is a [Semantic Version](https://semver.org/).\nconst char vers[] = \"{s}\";", .{"0.0.0"});
-	fp.close();
+    // First update versioning's on the C side.. //
+    var fp: std.fs.File = try std.fs.cwd().openFile("src/app_info.h", .{ .mode = .write_only });
+    // TODO: get this to grab `.version` in build.zig.zon //
+    try fp.writer().print("// This is a [Semantic Version](https://semver.org/).\nconst char vers[] = \"{s}\";", .{"0.0.0"});
+    fp.close();
 
     // LSF
-    const lsf_src_files = [_][]const u8{ "src/ls/main.c", "src/ls/strbuild.c", "src/ls/table.c"};
+    const lsf_src_files = [_][]const u8{ "src/ls/main.c", "src/ls/strbuild.c", "src/ls/table.c" };
     const lsf_exe = b.addExecutable(.{
         .name = "lsf",
         .root_module = b.createModule(.{
@@ -111,26 +111,22 @@ pub fn build(b: *Build) !void {
 
     // generate man pages //
     const help2man = b.step("help2man", "Use GNU `help2man` to generate man pages.");
-	help2man.makeFn = run_help2man;
+    help2man.makeFn = run_help2man;
 }
 
-
 fn run_help2man(self: *Build.Step, opt: Build.Step.MakeOptions) !void {
-	_ = self; _ = opt;
+    _ = self;
+    _ = opt;
 
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-   	defer std.debug.assert(gpa.deinit() == .ok);
-   	const alloc = gpa.allocator();
-   
-   	var help2man_result: proc.Child.RunResult = try proc.Child.run(.{
-		.allocator = alloc,
-		.argv = &[_][]const u8{"help2man", "zig-out/bin/lsf", "-o", "docs/lsf.1"}
-   	});
-   	alloc.free(help2man_result.stdout); alloc.free(help2man_result.stderr);
-   	
-	help2man_result = try proc.Child.run(.{
-		.allocator = alloc,
-		.argv = &[_][]const u8{"help2man", "zig-out/bin/mvf", "-o", "docs/mvf.1"}
-   	});
-   	alloc.free(help2man_result.stdout); alloc.free(help2man_result.stderr);	
+    var gpa: std.heap.DebugAllocator(.{}) = .init;
+    defer std.debug.assert(gpa.deinit() == .ok);
+    const alloc = gpa.allocator();
+
+    var help2man_result: proc.Child.RunResult = try proc.Child.run(.{ .allocator = alloc, .argv = &[_][]const u8{ "help2man", "zig-out/bin/lsf", "-o", "docs/lsf.1" } });
+    alloc.free(help2man_result.stdout);
+    alloc.free(help2man_result.stderr);
+
+    help2man_result = try proc.Child.run(.{ .allocator = alloc, .argv = &[_][]const u8{ "help2man", "zig-out/bin/mvf", "-o", "docs/mvf.1" } });
+    alloc.free(help2man_result.stdout);
+    alloc.free(help2man_result.stderr);
 }

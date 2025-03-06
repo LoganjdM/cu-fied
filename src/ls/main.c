@@ -15,26 +15,9 @@
 
 #include "../colors.h"
 #include "../app_info.h"
+#include "util/reallocarray.h"
 #include "strbuild.h"
 #include "table.h"
-
-
-#if defined(__APPLE__) && TARGET_OS_MAC==1 //fucksake
-#define MUL_NO_OVERFLOW ((size_t)1 << (sizeof(size_t) * 4))
-void *reallocarray(void *optr, size_t nmemb, size_t size) {
-	if ((nmemb >= MUL_NO_OVERFLOW || size >= MUL_NO_OVERFLOW) &&
-			nmemb > 0 && SIZE_MAX / nmemb < size) {
-		// errno = ENOMEM;
-		return NULL;
-	}
-	return realloc(optr, size * nmemb);
-}
-
-void* mempcpy(void *dest, const void *src, size_t n) {
-	memcpy(dest, src, n);
-	return (char*)dest + n;
-}
-#endif
 
 // the ENTIRE reason for this is just cuz i thought itd be unique and wanted to see if i could do it //
 // it turned out to be not that bad and I auctually quite liked using it //
@@ -195,7 +178,7 @@ uint16_t parse_arguments(const int argc, char** argv) {
 			#else
 			const char help[] = "lsf was not compiled with a modern C compiler like Clang 9 or GCC15, and could not make use of `#embed` which is required for the help message!\n";
 			#endif
-			
+
 			puts(help);
 			exit(0);
 		} else if(!strcmp(argv[i], "-v") || !strcmp(argv[i], "--version")) {

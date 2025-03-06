@@ -5,7 +5,7 @@ Cu-fied (_pronounced /kjufaɪd/_ ) is a rewrite of [GNU's Coreutils](https://www
 
 ## Building from source
 
-First off, it is primarily designed for x86_64 GNU/linux and aarch64 macOS. It most definitely will not work on Windows due using `unistd.h`, but WSL and Cygwin _should_ work. Supporting Windows is not on the roadmap, although PRs to improve cross-platform compatibility are welcome.
+First off, it is primarily designed for x86\_64 GNU/linux and aarch64 macOS. It most definitely will not work on Windows due using `unistd.h`, but WSL and Cygwin _should_ work. Supporting Windows is not on the roadmap, although PRs to improve cross-platform compatibility are welcome.
 
 With that out of the way, you only need these dependencies:
 
@@ -20,6 +20,6 @@ $ zig build
 # Run a specific program, e.g. `lsf`
 $ zig build run-<program>
 
-# Generate man pages (require's help2man package to be isntalled on your system)
+# Generate man pages (requires help2man to be installed on your system)
 $ zig build help2man
 ```

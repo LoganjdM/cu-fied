@@ -12,7 +12,7 @@
 
 union generic {
 	char* s;
-	
+
 	int* i;
 	unsigned int* u;
 	long* l;
@@ -26,7 +26,7 @@ struct bucket {
 	void* val;
 };
 
-// this is kind of an OOP way of doing things, but I felt syntatically & semantically it is nice for tables //
+// this is kind of an OOP way of doing things, but I felt syntactically & semantically it is nice for tables //
 typedef struct table table_t;
 struct table {
 	size_t cap;
@@ -40,7 +40,7 @@ struct table {
 
 bool __ht_put(table_t* ht, void* key, void* val) {
 	assert(key);
-	
+
 	int32_t hash = ht->hash_func(key);
 	size_t i = hash % ht->cap;
 	while(ht->buckets[i].key) {
@@ -48,7 +48,7 @@ bool __ht_put(table_t* ht, void* key, void* val) {
 			ht->buckets[i].val = malloc(strlen(val));
 			if(!ht->buckets[i].val) return false;
 			else strcpy(ht->buckets[i].val, val);
-			
+
 			return true;
 		}
 		++i;
@@ -100,7 +100,7 @@ table_t* ht_create(size_t starting_cap) {
 	}
 
 	// the reason why we are so fuckin weird with the hash function here is cuz I originally made this as an STB style table header lib where you could use any hashing f(x) you wanted //
-	*resulting_table = (table_t){ .cap = starting_cap, .buckets = buckets, 
+	*resulting_table = (table_t){ .cap = starting_cap, .buckets = buckets,
 								  .hash_func = fnv_1, .put = __ht_put, .get = __ht_get };
 	return resulting_table;
 }
