@@ -5,12 +5,12 @@
     // This is a [Semantic Version](https://semver.org/).
     .version = "0.0.0",
 
-    .minimum_zig_version = "0.14.0-dev.3298+6fe1993d8",
+    .minimum_zig_version = "0.14.0",
 
     .dependencies = .{
         .clap = .{
-            .url = "git+https://github.com/Hejsil/zig-clap#a39ab2595d685526a6fb13f9caba7317a2686a7d",
-            .hash = "1220065222573a7108ef7113aac0a076c785f70aedcc8667f55886b3c0aea6a3ead8",
+            .url = "git+https://github.com/Hejsil/zig-clap?ref=0.10.0#e47028deaefc2fb396d3d9e9f7bd776ae0b2a43a",
+            .hash = "clap-0.10.0-oBajB434AQBDh-Ei3YtoKIRxZacVPF1iSwp3IX_ZB8f0",
         },
     },
     .paths = .{
