@@ -35,7 +35,7 @@ struct table {
 	bool (*put)(table_t*, void*, void*);
 	union generic (*get)(table_t*, void*);
 	// you set your own hash function //
-	int32_t (*hash_func)(void*);
+	int32_t (*hash_func)(char*);
 };
 
 bool __ht_put(table_t* ht, void* key, void* val) {
@@ -80,13 +80,14 @@ union generic __ht_get(table_t* ht, void* key) {
 
 #define FNV_OFFSET 0x811c9dc5
 #define FNV_PRIME  0x01000193
-// Fowler's Noll Vo's hashing func //
-int32_t fnv_1(void* k) {
-	int32_t hash = FNV_OFFSET;
+// adler hashing function //
+int32_t adler32(char* k) {
+	uint32_t s1 = 1;
+	uint32_t s2 = 0;
 	for(uint32_t i=0; *((char*)k + i)/*prime example of generics sucking in C*/; ++i) {
-		hash *= FNV_PRIME;
-		hash ^= FNV_OFFSET;
-	} return hash;
+		s1 += ((char*)k)[i];
+		s2 += s1;
+	} return (s2 % 65521) << 16 | (s1 % 65521);
 }
 
 table_t* ht_create(size_t starting_cap) {
@@ -101,7 +102,7 @@ table_t* ht_create(size_t starting_cap) {
 
 	// the reason why we are so fuckin weird with the hash function here is cuz I originally made this as an STB style table header lib where you could use any hashing f(x) you wanted //
 	*resulting_table = (table_t){ .cap = starting_cap, .buckets = buckets,
-								  .hash_func = fnv_1, .put = __ht_put, .get = __ht_get };
+								  .hash_func = adler32, .put = __ht_put, .get = __ht_get };
 	return resulting_table;
 }
 

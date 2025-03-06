@@ -194,8 +194,7 @@ uint16_t parse_arguments(const int argc, char** argv) {
 				uint8_t val =(uint8_t)atoi(tok);
 				if(val <= 3) {
 					args |= (val << 4);
-				}
-				continue;
+				} continue;
 			}
 			
 			print_escape_code(stderr, YELLOW);
@@ -265,11 +264,104 @@ const char* fdescriptor_color(const mode_t fstat) {
 // 	return 0;
 // }
 
-// TODO: hashmap and file extension type dependent icons //
-const char* nerdfont_icon(const struct file finfo) {
+table_t* file_t_map = NULL;
+void init_filetype_dict(void) {
+	file_t_map = ht_create(75);
+	// full file names //
+		// progamming shessie //
+	file_t_map->put(file_t_map, ".gitignore", " ");
+	file_t_map->put(file_t_map, ".github", " ");
+	file_t_map->put(file_t_map, ".git", " ");
+	file_t_map->put(file_t_map, ".config", " ");
+	file_t_map->put(file_t_map, "Config", " ");
+	file_t_map->put(file_t_map, "makefile", " ");
+		// Home //
+	file_t_map->put(file_t_map, "Downloads", "󰉍 ");
+	file_t_map->put(file_t_map, "Pictures", "󰉏 ");
+	file_t_map->put(file_t_map, "Videos", "󰉏 ");
+		// misc //
+	file_t_map->put(file_t_map, "sxhkdrc", " ");
+	file_t_map->put(file_t_map, ".bashrc", " ");
+	file_t_map->put(file_t_map, ".bash_logout", " ");
+	file_t_map->put(file_t_map, ".bash_history", " ");
+	file_t_map->put(file_t_map, ".zshrc", " ");
+	file_t_map->put(file_t_map, ".zshrc_history", " ");
+	file_t_map->put(file_t_map, ".xinit", " ");
+	file_t_map->put(file_t_map, ".Xauthority", " ");
+	
+	// extensions //
+		// programming languages //
+	file_t_map->put(file_t_map, "c", " ");
+	file_t_map->put(file_t_map, "cpp", " ");
+	file_t_map->put(file_t_map, "h", " ");
+	file_t_map->put(file_t_map, "hpp", " ");
+	file_t_map->put(file_t_map, "zig", " ");
+	file_t_map->put(file_t_map, "zon", " ");
+	file_t_map->put(file_t_map, "lua", " ");
+	file_t_map->put(file_t_map, "teal", " ");
+	file_t_map->put(file_t_map, "py", " ");
+	file_t_map->put(file_t_map, "js", " ");
+	file_t_map->put(file_t_map, "ts", " ");
+	file_t_map->put(file_t_map, "html", " ");
+	file_t_map->put(file_t_map, "css", " ");
+	file_t_map->put(file_t_map, "cs", " ");
+	file_t_map->put(file_t_map, "csproj", " ");
+	file_t_map->put(file_t_map, "rs", " ");
+	file_t_map->put(file_t_map, "cargo", " ");
+		// shell languages //
+	file_t_map->put(file_t_map, "sh", " ");
+	file_t_map->put(file_t_map, "bash", " ");
+	file_t_map->put(file_t_map, "zsh", " ");
+	file_t_map->put(file_t_map, "fish", " ");
+	file_t_map->put(file_t_map, "ps1", " ");
+	file_t_map->put(file_t_map, "bat", " ");
+		// configs //
+	file_t_map->put(file_t_map, "rasi", " ");
+	file_t_map->put(file_t_map, "conf", " ");
+	file_t_map->put(file_t_map, "ini", " ");
+	file_t_map->put(file_t_map, "toml", " ");
+	file_t_map->put(file_t_map, "yaml", " ");
+	file_t_map->put(file_t_map, "json", " ");
+	file_t_map->put(file_t_map, "jsonc", " ");
+	file_t_map->put(file_t_map, "xml", "󰗀 ");
+		// media //
+			// image formats //
+	file_t_map->put(file_t_map, "png", "󰈟 ");
+	file_t_map->put(file_t_map, "avif", "󰈟 ");
+	file_t_map->put(file_t_map, "webp", "󰈟 ");
+	file_t_map->put(file_t_map, "jpeg", "󰈟 ");
+	file_t_map->put(file_t_map, "jpg", "󰈟 ");
+	file_t_map->put(file_t_map, "jpegxl", "󰈟 ");
+	file_t_map->put(file_t_map, "gif", "󰈟 ");
+	file_t_map->put(file_t_map, "apng", "󰈟 ");
+			// video formats //
+	file_t_map->put(file_t_map, "mp4", "󰈫 ");
+	file_t_map->put(file_t_map, "mkv", "󰈫 ");
+	file_t_map->put(file_t_map, "mov", "󰈫 ");
+	file_t_map->put(file_t_map, "webm", "󰈫 ");
+		// binaries //
+	file_t_map->put(file_t_map, "a", " ");
+	file_t_map->put(file_t_map, "dll", " ");
+	file_t_map->put(file_t_map, "exe", "󰨡 ");
+	file_t_map->put(file_t_map, "o", " ");
+	file_t_map->put(file_t_map, "lib", " ");
+		// misc //
+	file_t_map->put(file_t_map, "md", " ");
+	file_t_map->put(file_t_map, "markdown", " ");
+	file_t_map->put(file_t_map, "txt", " ");
+}
+const char* nerdfont_icon(struct file finfo) {
 	if(args & ARG_NO_NERDFONTS) {
 		return "\0";
 	}
+
+	char* result = NULL;
+	if((result = file_t_map->get(file_t_map, finfo.name).s)) return result;
+	char* tok = strtok(finfo.name, ".");
+	while(tok) {
+		result = tok;
+		tok = strtok(NULL, ".");
+	} if((result = file_t_map->get(file_t_map, result).s)) return result;
 
 	if(finfo.stat & S_IFDIR) return " ";
 	else if(finfo.stat & S_IXUSR) return " ";
@@ -280,6 +372,15 @@ const char* nerdfont_icon(const struct file finfo) {
 void list_files(const struct file* files, const uint16_t longest_fdescriptor, const uint16_t fcount, const struct winsize termsize, bool (*condition)(mode_t)) {
 	static uint8_t files_printed = 0;
 	uint8_t files_per_row = termsize.ws_col / longest_fdescriptor;
+
+	if(!file_t_map) init_filetype_dict();
+	if(!file_t_map) {
+		print_escape_code(stderr, RED);
+		fprintf(stderr, "Failed to allocate memory for file icon and color hashmapping\n");
+		print_escape_code(stderr, RESET);
+		return;
+	}
+	
 	for(uint16_t i=0;i<fcount;++i) {
 		if(condition(files[i].stat)) {
 			continue;
@@ -345,6 +446,7 @@ void list_files(const struct file* files, const uint16_t longest_fdescriptor, co
 		} else printf("%s", sb.str);
 		free(sb.str);
 	}
+	ht_free(file_t_map); file_t_map = NULL;
 }
 
 uint16_t get_longest_fdescriptor(const uint8_t longest_fname, const uint32_t largest_fsize) {
