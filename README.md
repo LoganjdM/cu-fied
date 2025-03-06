@@ -19,4 +19,7 @@ $ zig build
 
 # Run a specific program, e.g. `lsf`
 $ zig build run-<program>
+
+# Generate man pages (require's help2man package to be isntalled on your system)
+$ zig build help2man
 ```

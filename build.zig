@@ -17,6 +17,12 @@ pub fn build(b: *Build) !void {
     // Dependencies
     const clap = b.dependency("clap", .{});
 
+	// First update versioning's on the C side.. //
+	var fp: std.fs.File = try std.fs.cwd().openFile("src/app_info.h", .{ .mode = .write_only });
+	// TODO: get this to grab `.version` in build.zig.zon //
+	try fp.writer().print("// This is a [Semantic Version](https://semver.org/).\nconst char vers[] = \"{s}\";", .{"0.0.0"});
+	fp.close();
+
     // LSF
     const lsf_src_files = [_][]const u8{ "src/ls/main.c", "src/ls/strbuild.c", "src/ls/table.c"};
     const lsf_exe = b.addExecutable(.{
