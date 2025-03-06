@@ -1,4 +1,5 @@
 .zig-cache
 zig-out
 docs/*.1
-a.out # any a.out's would come from me effin around with different C compilers than zig's clang frontend(like GCC)
+# any a.out's would come from me effin around with different C compilers than zig's clang frontend(like GCC)
+a.out 

@@ -3,12 +3,12 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <dirent.h>
-// #include <errno.h>
 #include <string.h>
 #include <stdint.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 
+// if we dont have embed we *probably* aren't c23 (though some versions of clang are c23 without #embed so this isn't foolproof) //
 #ifndef __has_embed
 #	include <stdbool.h>
 #endif
@@ -31,7 +31,7 @@ uint16_t args = 0b0;
 #define ARG_FPERMS 0b1000000
 #define ARG_DIR_CONTS 0b10000000
 // u2 int //
-#define SIZE_ARG(args) (((args) << 25)) >> 29
+#define SIZE_ARG(args) (args >> 4 & 0b11)
 #define ARG_SIZE_NONE	0b000000
 
 struct file {
@@ -51,7 +51,7 @@ uint32_t dir_contents(const char* dir, const bool bytes) {
 		return 0;
 	} uint32_t result = 0;
 	struct stat st; struct dirent* dp;
-	char true_fname[strlen(dir)+257] = {};
+	char true_fname[strlen(dir)+257];
 	while((dp=readdir(dfd))!=NULL) {
 		sprintf(true_fname, "%s/%s", dir, dp->d_name);
 
@@ -80,7 +80,7 @@ struct file* query_files(const char* dir, uint8_t* longest_fname, uint32_t* larg
 		} *largest_fsize = 0; *longest_fname = 0;
 	}
 
-	char true_fname[strlen(dir)+257] = {};
+	char true_fname[strlen(dir)+257];
  	struct stat st; struct dirent* dp;
  	uint16_t i;
 	for(i=0;(dp=readdir(dfd))!=NULL;++i) {
@@ -91,7 +91,7 @@ struct file* query_files(const char* dir, uint8_t* longest_fname, uint32_t* larg
 				break;
 			} array_len*=2;
 			#ifndef NDEBUG
-			printf("Rellocating %lu bytes", array_len*sizeof(struct file));
+			printf("Reallocating %lu bytes", array_len*sizeof(struct file));
 			#endif
 			void* new_ptr = reallocarray(files, array_len, sizeof(struct file));
 			if(!new_ptr) {
@@ -105,7 +105,6 @@ struct file* query_files(const char* dir, uint8_t* longest_fname, uint32_t* larg
 		stat(true_fname, &st);
 
 		files[i].stat = st.st_mode;
-		// TODO: change to blocks //
 		if(!S_ISDIR(st.st_mode)) {
 			files[i].size = (SIZE_ARG(args)==1) ? st.st_size : st.st_blocks;
 		} else {
@@ -168,9 +167,9 @@ uint16_t parse_arguments(const int argc, char** argv) {
 						args |= (val << 4);
 					}
 			}
-		} else if(!strcmp(argv[i], "-U") || !strcmp(argv[i], "--unsorted")) {
+		} else if(ISARG(argv[i], "-U", "--unsorted")) {
 			args |= ARG_UNSORTED;
-		} else if(!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
+		} else if(ISARG(argv[i], "-h", "--help")) {
 			#ifdef __has_embed
 			const char help[] = {
 			#	embed "../../docs/lshelp.txt"
@@ -181,29 +180,24 @@ uint16_t parse_arguments(const int argc, char** argv) {
 
 			puts(help);
 			exit(0);
-		} else if(!strcmp(argv[i], "-v") || !strcmp(argv[i], "--version")) {
+		} else if(ISARG(argv[i], "-v", "--version")) {
 			puts(vers);
 			exit(0);
-		} else if(!strcmp(argv[i], "-g") || !strcmp(argv[i], "--uid-gid")) {
+		} else if(ISARG(argv[i], "-g", "--uid-gid")) {
 			args |= ARG_FPERMS;
 		} else {
-			// FIXME: this causes segfault on dev build and only dev build, on only GCC wtfd? //
-			// for some reason we need 2 separate buffers, and I have no clue why //
-			char humanreadable_arg[strlen(argv[i])] = {}; char hr_arg[strlen(argv[i])] = {};
-			if(!strcmp(strncpy(humanreadable_arg, argv[i], 17), "--human-readable=")) {
+			// what the fuck was I smoking when I was using strncpy for this? just tokenize it //
+			char* tok = strtok(argv[i], "=");
+			if(ISARG(tok, "--human-readable", "-hr")) {
+				tok = strtok(NULL, "=");
 				// atoi can fail here but it returns with 0 so if your wrong we assume default //
-				uint8_t val =(uint8_t)atoi(strncpy(humanreadable_arg, argv[i]+17, 1));
-				if(val <= 3) {
-					args |= (val << 4);
-				}
-				continue;
-			} else if(!strcmp(strncpy(hr_arg, argv[i], 4), "-hr=")) {
-				uint8_t val = (uint8_t)atoi(strncpy(hr_arg, argv[i]+4, 1));
+				uint8_t val =(uint8_t)atoi(tok);
 				if(val <= 3) {
 					args |= (val << 4);
 				}
 				continue;
 			}
+			
 			print_escape_code(stderr, YELLOW);
 			fprintf(stderr, "\"%s\" is not a valid argument!\n", argv[i]); print_escape_code(stderr, RESET);
 			exit(1);
@@ -230,6 +224,7 @@ uint16_t parse_arguments(const int argc, char** argv) {
 }
 
 // i hate even simple conversion math //
+// TODO: use floor(log10(n))+1 to make this O1 //
 char simplified_fsize(uint32_t fsize, float* readable_fsize) {
 	*readable_fsize = 0;
 	char unit = 0;
@@ -317,7 +312,7 @@ void list_files(const struct file* files, const uint16_t longest_fdescriptor, co
 				fdescriptor_len += sb_append(&sb, "(");
 			}
 			if(size_arg==1) {
-				char* bytes = malloc(floor(log10(files[i].size))+1);
+				char* bytes = malloc((size_t)floor(log10(files[i].size))+2);
 				sprintf(bytes, "%u B)", files[i].size);
 				fdescriptor_len += sb_append(&sb, bytes);
 				free(bytes);
@@ -352,7 +347,6 @@ void list_files(const struct file* files, const uint16_t longest_fdescriptor, co
 	}
 }
 
-// FIXME: this function is incorrect //
 uint16_t get_longest_fdescriptor(const uint8_t longest_fname, const uint32_t largest_fsize) {
 	uint16_t result = ((uint16_t)longest_fname)+3;
 
@@ -361,9 +355,9 @@ uint16_t get_longest_fdescriptor(const uint8_t longest_fname, const uint32_t lar
 		case 0:
 			break;
 		case 1:
-			result += floor(log10(largest_fsize))+1; // if I could get this equation to auctually be right then I'd like to use it to speed up `simplified_fsize(size_t, float*)`
+			result += floor(log10(largest_fsize))+1;
 	 		#ifndef NDEBUG
-	 		printf("The largest file %u bytes. the equation from pulled from our as- brain says thats %u base10 numbers.\n", largest_fsize, result-((uint16_t)longest_fname)+1);
+	 		printf("The largest file %u bytes. the equation from pulled from our as- brain says thats %u base10 numbers.\n", largest_fsize, (uint32_t)floor(log10(largest_fsize))+1);
 	 		#endif
 	 		break;
 	 	default:
