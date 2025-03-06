@@ -1,2 +1,5 @@
 [default.extend-words]
 fied = "fied" # As in Cu-fied
+
+[files]
+extend-exclude = ["build.zig.zon"]
