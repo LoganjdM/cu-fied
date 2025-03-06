@@ -1,16 +1,15 @@
 #ifndef MEMPCPY_H
 #define MEMPCPY_H
 
-#if !defined(HAVE_MEMPCPY)
+#include <string.h>
 
-#include <string.h> // memcpy
-
+// Only define mempcpy if it's not already available
+#if defined(__APPLE__) && TARGET_OS_MAC==1 || !defined(__GLIBC__)
 static inline void *
 mempcpy(void *dest, const void *src, size_t n) {
     memcpy(dest, src, n);
     return (char*)dest + n;
 }
+#endif
 
-#endif /* !defined(HAVE_MEMPCPY)) */
-
-#endif /* MEMPCPY_H */
+#endif // MEMPCPY_H
