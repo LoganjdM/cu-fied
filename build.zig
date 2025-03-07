@@ -24,7 +24,7 @@ pub fn build(b: *Build) !void {
     fp.close();
 
     // LSF
-    const lsf_src_files = [_][]const u8{ "src/ls/main.c", "src/ls/strbuild.c", "src/ls/table.c" };
+    const lsf_src_files = [_][]const u8{ "src/ls/main.c", "src/ls/type/strbuild.c", "src/ls/type/table.c" };
     const lsf_exe = b.addExecutable(.{
         .name = "lsf",
         .root_module = b.createModule(.{

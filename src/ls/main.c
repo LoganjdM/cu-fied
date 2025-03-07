@@ -16,8 +16,8 @@
 #include "../colors.h"
 #include "../app_info.h"
 #include "util/reallocarray.h"
-#include "strbuild.h"
-#include "table.h"
+#include "type/strbuild.h"
+#include "file_t_map.h"
 
 // the ENTIRE reason for this is just cuz i thought itd be unique and wanted to see if i could do it //
 // it turned out to be not that bad and I auctually quite liked using it //
@@ -248,12 +248,27 @@ char simplified_fsize(uint32_t fsize, float* readable_fsize) {
 	return unit;
 }
 
-const char* fdescriptor_color(const mode_t fstat) {
-	if(fstat & S_IFDIR) return escape_code(stdout, BLUE);
-	if(fstat & S_IXUSR) return escape_code(stdout, GREEN);
-	if(S_ISREG(fstat)) return "\0";
-	if(fstat & S_IFLNK) return escape_code(stdout, CYAN);
-	return "\0";
+const char* fdescriptor_color(struct file finfo) {
+	
+	if(finfo.stat & S_IFDIR) return escape_code(stdout, BLUE);
+	if(finfo.stat & S_IXUSR) return escape_code(stdout, GREEN);
+	
+	char* is_media = NULL;
+	char* tok = strtok(finfo.name, "."); char* extension = NULL;
+	while(tok) {
+		extension = tok;
+		tok = strtok(NULL, ".");
+	} if(!(is_media=file_t_map->get(file_t_map, extension).p)) return "\0";
+
+	// TODO: prob could do some boolean math here instead of 78352957 237y89523 if statements //
+	if(!strcmp(is_media, "󰈟 ")) return escape_code(stdout, YELLOW);
+	if(!strcmp(is_media, "󰵸 ")) return escape_code(stdout, YELLOW);
+	if(!strcmp(is_media, "󰜡 ")) return escape_code(stdout, YELLOW);
+	if(!strcmp(is_media, "󰈫 ")) return escape_code(stdout, YELLOW);
+	if(!strcmp(is_media, "󰈫 ")) return escape_code(stdout, YELLOW);
+	
+	if(finfo.stat & S_IFREG) return "\0";
+	else return escape_code(stdout, CYAN); // must be symlink //
 }
 
 // TODO: how tf does stat(1) format its readable access perms? //
@@ -264,92 +279,6 @@ const char* fdescriptor_color(const mode_t fstat) {
 // 	return 0;
 // }
 
-table_t* file_t_map = NULL;
-void init_filetype_dict(void) {
-	file_t_map = ht_create(75);
-	// full file names //
-		// progamming shessie //
-	file_t_map->put(file_t_map, ".gitignore", " ");
-	file_t_map->put(file_t_map, ".github", " ");
-	file_t_map->put(file_t_map, ".git", " ");
-	file_t_map->put(file_t_map, ".config", " ");
-	file_t_map->put(file_t_map, "Config", " ");
-	file_t_map->put(file_t_map, "makefile", " ");
-		// Home //
-	file_t_map->put(file_t_map, "Downloads", "󰉍 ");
-	file_t_map->put(file_t_map, "Pictures", "󰉏 ");
-	file_t_map->put(file_t_map, "Videos", "󰉏 ");
-		// misc //
-	file_t_map->put(file_t_map, "sxhkdrc", " ");
-	file_t_map->put(file_t_map, ".bashrc", " ");
-	file_t_map->put(file_t_map, ".bash_logout", " ");
-	file_t_map->put(file_t_map, ".bash_history", " ");
-	file_t_map->put(file_t_map, ".zshrc", " ");
-	file_t_map->put(file_t_map, ".zshrc_history", " ");
-	file_t_map->put(file_t_map, ".xinit", " ");
-	file_t_map->put(file_t_map, ".Xauthority", " ");
-	
-	// extensions //
-		// programming languages //
-	file_t_map->put(file_t_map, "c", " ");
-	file_t_map->put(file_t_map, "cpp", " ");
-	file_t_map->put(file_t_map, "h", " ");
-	file_t_map->put(file_t_map, "hpp", " ");
-	file_t_map->put(file_t_map, "zig", " ");
-	file_t_map->put(file_t_map, "zon", " ");
-	file_t_map->put(file_t_map, "lua", " ");
-	file_t_map->put(file_t_map, "teal", " ");
-	file_t_map->put(file_t_map, "py", " ");
-	file_t_map->put(file_t_map, "js", " ");
-	file_t_map->put(file_t_map, "ts", " ");
-	file_t_map->put(file_t_map, "html", " ");
-	file_t_map->put(file_t_map, "css", " ");
-	file_t_map->put(file_t_map, "cs", " ");
-	file_t_map->put(file_t_map, "csproj", " ");
-	file_t_map->put(file_t_map, "rs", " ");
-	file_t_map->put(file_t_map, "cargo", " ");
-		// shell languages //
-	file_t_map->put(file_t_map, "sh", " ");
-	file_t_map->put(file_t_map, "bash", " ");
-	file_t_map->put(file_t_map, "zsh", " ");
-	file_t_map->put(file_t_map, "fish", " ");
-	file_t_map->put(file_t_map, "ps1", " ");
-	file_t_map->put(file_t_map, "bat", " ");
-		// configs //
-	file_t_map->put(file_t_map, "rasi", " ");
-	file_t_map->put(file_t_map, "conf", " ");
-	file_t_map->put(file_t_map, "ini", " ");
-	file_t_map->put(file_t_map, "toml", " ");
-	file_t_map->put(file_t_map, "yaml", " ");
-	file_t_map->put(file_t_map, "json", " ");
-	file_t_map->put(file_t_map, "jsonc", " ");
-	file_t_map->put(file_t_map, "xml", "󰗀 ");
-		// media //
-			// image formats //
-	file_t_map->put(file_t_map, "png", "󰈟 ");
-	file_t_map->put(file_t_map, "avif", "󰈟 ");
-	file_t_map->put(file_t_map, "webp", "󰈟 ");
-	file_t_map->put(file_t_map, "jpeg", "󰈟 ");
-	file_t_map->put(file_t_map, "jpg", "󰈟 ");
-	file_t_map->put(file_t_map, "jpegxl", "󰈟 ");
-	file_t_map->put(file_t_map, "gif", "󰈟 ");
-	file_t_map->put(file_t_map, "apng", "󰈟 ");
-			// video formats //
-	file_t_map->put(file_t_map, "mp4", "󰈫 ");
-	file_t_map->put(file_t_map, "mkv", "󰈫 ");
-	file_t_map->put(file_t_map, "mov", "󰈫 ");
-	file_t_map->put(file_t_map, "webm", "󰈫 ");
-		// binaries //
-	file_t_map->put(file_t_map, "a", " ");
-	file_t_map->put(file_t_map, "dll", " ");
-	file_t_map->put(file_t_map, "exe", "󰨡 ");
-	file_t_map->put(file_t_map, "o", " ");
-	file_t_map->put(file_t_map, "lib", " ");
-		// misc //
-	file_t_map->put(file_t_map, "md", " ");
-	file_t_map->put(file_t_map, "markdown", " ");
-	file_t_map->put(file_t_map, "txt", " ");
-}
 const char* nerdfont_icon(struct file finfo) {
 	if(args & ARG_NO_NERDFONTS) {
 		return "\0";
@@ -361,7 +290,7 @@ const char* nerdfont_icon(struct file finfo) {
 	while(tok) {
 		result = tok;
 		tok = strtok(NULL, ".");
-	} if((result = file_t_map->get(file_t_map, result).s)) return result;
+	} if((result = file_t_map->get(file_t_map, result).s) && !(!strcmp(result, " "/*HACK TO GET RID OF /lib AND /usr/lib + /usr/local/lib */) && finfo.stat & S_IFDIR)) return result;
 
 	if(finfo.stat & S_IFDIR) return " ";
 	else if(finfo.stat & S_IXUSR) return " ";
@@ -393,7 +322,7 @@ void list_files(const struct file* files, const uint16_t longest_fdescriptor, co
 		}
 
 		strbuild_t sb = sb_new();
-		sb_append(&sb, fdescriptor_color(files[i].stat));
+		sb_append(&sb, fdescriptor_color(files[i]));
 		size_t fdescriptor_len = sb_append(&sb, nerdfont_icon(files[i]));
 		sb_append(&sb, escape_code(stdout, BOLD));
 
