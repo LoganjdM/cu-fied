@@ -64,31 +64,25 @@ pub fn build(b: *Build) !void {
     // TOUCHF
     const touchf_src_files = [_][]const u8{ "src/touch/main.c", "src/type/table.c" };
     const touchf_exe = b.addExecutable(.{
-    	.name = "touchf",
-    	.root_module = b.createModule(.{
-    		.target = target,
-    		.optimize = optimize,
-    		.link_libc = true,
-    	}),
+        .name = "touchf",
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        }),
     });
-    touchf_exe.root_module.addCSourceFiles(.{
-    	.files = &touchf_src_files,
-    	.flags = c_flags
-    });
+    touchf_exe.root_module.addCSourceFiles(.{ .files = &touchf_src_files, .flags = c_flags });
     b.installArtifact(touchf_exe);
 
     const touchf_exe_check = b.addExecutable(.{
-			.name = "touchf",
-			.root_module = b.createModule(.{
-			.target = target,
-			.optimize = optimize,
-			.link_libc = true,
-		}),
-	});
-	touchf_exe_check.root_module.addCSourceFiles(.{
-		.files = &touchf_src_files,
-		.flags = c_flags
-	});
+        .name = "touchf",
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        }),
+    });
+    touchf_exe_check.root_module.addCSourceFiles(.{ .files = &touchf_src_files, .flags = c_flags });
 
     const touchf_check = b.step("check-touchf", "Check if TouchF compiles");
     touchf_check.dependOn(&touchf_exe_check.step);
@@ -166,7 +160,7 @@ fn run_help2man(self: *Build.Step, opt: Build.Step.MakeOptions) !void {
     help2man_result = try proc.Child.run(.{ .allocator = alloc, .argv = &[_][]const u8{ "help2man", "zig-out/bin/mvf", "-o", "docs/mvf.1" } });
     alloc.free(help2man_result.stdout);
     alloc.free(help2man_result.stderr);
-    
+
     help2man_result = try proc.Child.run(.{ .allocator = alloc, .argv = &[_][]const u8{ "help2man", "zig-out/bin/touchf", "-o", "docs/touchf.1" } });
     alloc.free(help2man_result.stdout);
     alloc.free(help2man_result.stderr);
