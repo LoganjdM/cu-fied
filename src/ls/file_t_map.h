@@ -1,4 +1,4 @@
-#include "type/table.h"
+#include "../type/table.h"
 
 table_t* file_t_map = NULL;
 void init_filetype_dict(void) {

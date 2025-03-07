@@ -16,7 +16,7 @@
 const char* escape_code(FILE* fp, const char ansi[5]) {
 	if(isatty(fileno(fp))) {
 		return ansi;
-	} else return NULL;
+	} else return "\0";
 }
 
 int print_escape_code(FILE* fp, const char ansi[5]) {

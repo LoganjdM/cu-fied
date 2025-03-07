@@ -24,7 +24,7 @@ pub fn build(b: *Build) !void {
     fp.close();
 
     // LSF
-    const lsf_src_files = [_][]const u8{ "src/ls/main.c", "src/ls/type/strbuild.c", "src/ls/type/table.c" };
+    const lsf_src_files = [_][]const u8{ "src/ls/main.c", "src/type/strbuild.c", "src/type/table.c" };
     const lsf_exe = b.addExecutable(.{
         .name = "lsf",
         .root_module = b.createModule(.{
@@ -60,6 +60,43 @@ pub fn build(b: *Build) !void {
     if (b.args) |args| run_lsf_exe.addArgs(args);
     const run_lsf = b.step("run-lsf", "Run LSF");
     run_lsf.dependOn(&run_lsf_exe.step);
+
+    // TOUCHF
+    const touchf_src_files = [_][]const u8{ "src/touch/main.c", "src/type/table.c" };
+    const touchf_exe = b.addExecutable(.{
+    	.name = "touchf",
+    	.root_module = b.createModule(.{
+    		.target = target,
+    		.optimize = optimize,
+    		.link_libc = true,
+    	}),
+    });
+    touchf_exe.root_module.addCSourceFiles(.{
+    	.files = &touchf_src_files,
+    	.flags = c_flags
+    });
+    b.installArtifact(touchf_exe);
+
+    const touchf_exe_check = b.addExecutable(.{
+			.name = "touchf",
+			.root_module = b.createModule(.{
+			.target = target,
+			.optimize = optimize,
+			.link_libc = true,
+		}),
+	});
+	touchf_exe_check.root_module.addCSourceFiles(.{
+		.files = &touchf_src_files,
+		.flags = c_flags
+	});
+
+    const touchf_check = b.step("check-touchf", "Check if TouchF compiles");
+    touchf_check.dependOn(&touchf_exe_check.step);
+
+    const run_touchf_exe = b.addRunArtifact(touchf_exe);
+    if (b.args) |args| run_touchf_exe.addArgs(args);
+    const run_touchf = b.step("run-touchf", "Run TouchF");
+    run_touchf.dependOn(&run_touchf_exe.step);
 
     // MVF
     const mvf_main = b.path("src/mv/main.zig");
@@ -127,6 +164,10 @@ fn run_help2man(self: *Build.Step, opt: Build.Step.MakeOptions) !void {
     alloc.free(help2man_result.stderr);
 
     help2man_result = try proc.Child.run(.{ .allocator = alloc, .argv = &[_][]const u8{ "help2man", "zig-out/bin/mvf", "-o", "docs/mvf.1" } });
+    alloc.free(help2man_result.stdout);
+    alloc.free(help2man_result.stderr);
+    
+    help2man_result = try proc.Child.run(.{ .allocator = alloc, .argv = &[_][]const u8{ "help2man", "zig-out/bin/touchf", "-o", "docs/touchf.1" } });
     alloc.free(help2man_result.stdout);
     alloc.free(help2man_result.stderr);
 }

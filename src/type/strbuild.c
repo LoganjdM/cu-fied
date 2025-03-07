@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
-#include "../util/mempcpy.h"
+#include "../polyfill/mempcpy.h"
 
 typedef struct {
 	char* str;

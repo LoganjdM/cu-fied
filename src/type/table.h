@@ -5,6 +5,9 @@
 #ifndef _STDINT_H
 #	include <stdint.h>
 #endif
+#ifndef __has_imbed
+#	include <stdbool.h>
+#endif
 
 union generic {
 	char* s;
