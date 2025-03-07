@@ -60,6 +60,6 @@ int main(int argc, char** argv) {
 		}
 		
 		fclose(fp);
-	}
+	} ht_free(file_types);
 	return 0;
 }
