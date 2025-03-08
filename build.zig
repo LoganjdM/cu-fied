@@ -44,6 +44,7 @@ fn build_c(b: *Build, srcs: anytype, target: Build.ResolvedTarget, optimize: std
     try add_build_steps(b, name, &exe_check.step, &run_exe.step);
 }
 
+var colors_module: *Build.Module = undefined;
 fn build_zig(b: *Build, main: Build.LazyPath, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8) !void {
     const exe = b.addExecutable(.{
         .name = name,
@@ -54,6 +55,7 @@ fn build_zig(b: *Build, main: Build.LazyPath, target: Build.ResolvedTarget, opti
             .link_libc = true,
         }),
     });
+    exe.root_module.addImport("colors", colors_module);
     b.installArtifact(exe);
 
     const exe_check = b.addExecutable(.{
@@ -65,6 +67,7 @@ fn build_zig(b: *Build, main: Build.LazyPath, target: Build.ResolvedTarget, opti
             .link_libc = true,
         }),
     });
+    exe_check.root_module.addIncludePath(b.path("src"));
 
     const run_exe = b.addRunArtifact(exe);
     if (b.args) |args| run_exe.addArgs(args);
@@ -101,8 +104,15 @@ pub fn build(b: *Build) !void {
     } });
     const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseFast });
 
-    // Global steps
+    // Global
     global_check = b.step("check", "Check if all apps compile");
+    colors_module = b.addModule("colors", .{
+    	.root_source_file = b.path("src/colors.zig"),
+    	.target = target,
+    	.optimize = optimize,
+    	.link_libc = true
+    });
+    colors_module.addIncludePath(b.path("src"));
     const fmt_step = b.step("fmt", "Format all zig code");
     const check_fmt_step = b.step("check-fmt", "Check formatting of all zig code");
 
