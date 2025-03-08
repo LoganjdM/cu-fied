@@ -16,7 +16,7 @@
 #include "../colors.h"
 #include "../app_info.h"
 #include "../polyfill/reallocarray.h"
-#include "../type/strbuild.h"
+#include "../ctypes/strbuild.h"
 #include "file_t_map.h"
 
 // the ENTIRE reason for this is just cuz i thought itd be unique and wanted to see if i could do it //

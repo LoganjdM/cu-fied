@@ -24,7 +24,7 @@ pub fn build(b: *Build) !void {
     fp.close();
 
     // LSF
-    const lsf_src_files = [_][]const u8{ "src/ls/main.c", "src/type/strbuild.c", "src/type/table.c" };
+    const lsf_src_files = [_][]const u8{ "src/ls/main.c", "src/ctypes/strbuild.c", "src/ctypes/table.c" };
     const lsf_exe = b.addExecutable(.{
         .name = "lsf",
         .root_module = b.createModule(.{
@@ -62,7 +62,7 @@ pub fn build(b: *Build) !void {
     run_lsf.dependOn(&run_lsf_exe.step);
 
     // TOUCHF
-    const touchf_src_files = [_][]const u8{ "src/touch/main.c", "src/type/table.c" };
+    const touchf_src_files = [_][]const u8{ "src/touch/main.c", "src/ctypes/table.c" };
     const touchf_exe = b.addExecutable(.{
         .name = "touchf",
         .root_module = b.createModule(.{
@@ -93,7 +93,7 @@ pub fn build(b: *Build) !void {
     run_touchf.dependOn(&run_touchf_exe.step);
 
     // MVF
-    const mvf_main = b.path("src/mv/main.zig");
+    const mvf_main = b.path("src/file-io/mv/main.zig");
 
     const mvf_exe = b.addExecutable(.{
         .name = "mvf",
@@ -125,6 +125,38 @@ pub fn build(b: *Build) !void {
     if (b.args) |args| run_mvf_exe.addArgs(args);
     const run_mvf = b.step("run-mvf", "Run MVF");
     run_mvf.dependOn(&run_mvf_exe.step);
+
+    // CPF
+    const cpf = b.path("src/file-io/cp/main.zig");
+
+    const cpf_exe = b.addExecutable(.{
+        .name = "cpf",
+        .root_module = b.createModule(.{
+            .root_source_file = cpf,
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        }),
+    });
+    b.installArtifact(cpf_exe);
+
+    const cpf_exe_check = b.addExecutable(.{
+        .name = "cpf",
+        .root_module = b.createModule(.{
+            .root_source_file = cpf,
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        }),
+    });
+
+    const cpf_check = b.step("check-cpf", "Check if CPF compiles");
+    cpf_check.dependOn(&cpf_exe_check.step);
+
+    const run_cpf_exe = b.addRunArtifact(cpf_exe);
+    if (b.args) |args| run_cpf_exe.addArgs(args);
+    const run_cpf = b.step("run-cpf", "Run CPF");
+    run_cpf.dependOn(&run_cpf_exe.step);
 
     // Global
     const check = b.step("check", "Check if all apps compile");
