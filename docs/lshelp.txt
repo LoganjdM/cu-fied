@@ -23,10 +23,10 @@ Arguments range from visual preferences to sorting or information to display on 
                                in a directory added together.
 
      -nf, --no-nerdfonts       does not use nerdfonts in output (not recommended) (its not pwetty).
-     -fc, --force-color        TO BE ADDED
+     -fc, --force-color        forces output to use color, even if stdout is not a tty
 
      -g, --uid-gid             lists the uid and gid of files. assimilar to `ls -n` or `ls -l`.
-     -r, --recursive           TO BE ADDED
+     -r, --recursive           TO BE ADDED(TM)
 
      -h, --help                displays this message.
      -v, --version             display CU-Fied version

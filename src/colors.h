@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <unistd.h>
+#ifndef __has_embed
+#	include <stdbool.h>
+#endif
 
 #define RED "\x1b[31m"
 #define BLUE "\x1b[34m"
@@ -14,9 +17,10 @@
 
 #define RESET "\x1b[0m"
 
+bool force_color = false;
 
 const char* escape_code(FILE* fp, const char ansi[5]) {
-	if(isatty(fileno(fp))) {
+	if(isatty(fileno(fp)) || force_color) {
 		return ansi;
 	} else return "\0";
 }

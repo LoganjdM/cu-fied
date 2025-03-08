@@ -179,6 +179,8 @@ uint16_t parse_arguments(const int argc, char** argv) {
 			exit(0);
 		} else if(ISARG(argv[i], "-g", "--uid-gid")) {
 			args |= ARG_FPERMS;
+		} else if(ISARG(argv[i], "-fc", "--force-color")) {
+			force_color = true;
 		} else {
 			// what the fuck was I smoking when I was using strncpy for this? just tokenize it //
 			char* tok = strtok(argv[i], "=");
