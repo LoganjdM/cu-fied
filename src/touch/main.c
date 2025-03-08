@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
+#include <sys/stat.h>
 #ifndef __has_embed
 #	include <stdbool.h>
 #endif
@@ -9,6 +10,9 @@
 #include "../colors.h"
 #include "../app_info.h"
 #include "file_types.h"
+
+short args = 0b0;
+#define ARG_FORCE 0b1
 
 table_t* file_types = NULL;
 // TODO: automate this and allocate these buffers on the heap //
@@ -41,9 +45,11 @@ bool parse_args(const char* arg) {
 			#endif
 			puts(help_message);
 			exit(0);
-		} if(ISARG(arg, "-v", "--version")) {
+		} else if(ISARG(arg, "-v", "--version")) {
 			puts(vers);
 			exit(0);
+		} else if(ISARG(arg, "-f", "--force")) {
+			args |= ARG_FORCE;
 		}
 	} return false;
 }
@@ -61,7 +67,14 @@ int main(int argc, char** argv) {
 	}
 
 	for(int i=1; i<argc; ++i) {
+		if(!parse_args(argv[i])) continue;
+	} for(int i=1; i<argc; ++i) {
 		if(parse_args(argv[i])) continue;
+
+		if(!(args & ARG_FORCE)) {
+			struct stat st = {0};
+			if(stat(argv[i], &st)==0) continue; // stat succeeded, file exists
+		}
 	
 		FILE* fp = fopen(argv[i], "w");
 		if(!fp) {
