@@ -44,10 +44,9 @@ struct file {
 uint32_t dir_contents(const char* dir, const bool bytes) {
 	DIR* dfd = opendir(dir);
 	if(!dfd) {
-		print_escape_code(stderr, RED);
-		fprintf(stderr, "Failed to check the size of \"");
-		print_escape_code(stderr, BLUE); fprintf(stderr ,"%s", dir); print_escape_code(stderr, RED);
-		fprintf(stderr, "\". (Could not open directory!)\n"); print_escape_code(stderr, RESET);
+		printf_escape_code(stderr, RED, "Failed to check the size of \"");
+		printf_escape_code(stderr, BLUE, "%s", dir);
+		printf_escape_code(stderr, RED, "\". (Could not open directory!)\n"); print_escape_code(stderr, RESET);
 		return 0;
 	} uint32_t result = 0;
 	struct stat st; struct dirent* dp;
@@ -67,14 +66,12 @@ uint32_t dir_contents(const char* dir, const bool bytes) {
 struct file* query_files(const char* dir, uint8_t* longest_fname, uint32_t* largest_fsize, uint16_t* fcount, struct file* files) {
 	DIR* dfd = opendir(dir);
 	if(!dfd) {
-		print_escape_code(stderr, RED);
-		fprintf(stderr, "Failed to query files! (memory allocation failure!)\n"); print_escape_code(stderr, RESET);
+		printf_escape_code(stderr, RED, "Failed to query files! (memory allocation failure!)\n"); print_escape_code(stderr, RESET);
 		return NULL;
  	} uint16_t array_len = STARTING_LEN;
 	if(!files) {
 		if(!(files=calloc(array_len, sizeof(struct file)))) {
-			print_escape_code(stderr, RED);
-			fprintf(stderr, "Failed to query files! (memory allocation failure!)\n"); print_escape_code(stderr, RESET);
+			printf_escape_code(stderr, RED, "Failed to query files! (memory allocation failure!)\n"); print_escape_code(stderr, RESET);
 			closedir(dfd);
 			return NULL;
 		} *largest_fsize = 0; *longest_fname = 0;
@@ -86,8 +83,7 @@ struct file* query_files(const char* dir, uint8_t* longest_fname, uint32_t* larg
 	for(i=0;(dp=readdir(dfd))!=NULL;++i) {
 		if(i>=array_len) {
 			if(((array_len*2)*sizeof(struct file)) < (array_len*sizeof(struct file))) {
-				print_escape_code(stderr, RED);
-				fprintf(stderr, "Failed to query files! (realloaction caused multiplication overflow!)\n"); print_escape_code(stderr, RESET);
+				printf_escape_code(stderr, RED, "Failed to query files! (realloaction caused multiplication overflow!)\n"); print_escape_code(stderr, RESET);
 				break;
 			} array_len*=2;
 			#ifndef NDEBUG
@@ -95,8 +91,7 @@ struct file* query_files(const char* dir, uint8_t* longest_fname, uint32_t* larg
 			#endif
 			void* new_ptr = reallocarray(files, array_len, sizeof(struct file));
 			if(!new_ptr) {
-				print_escape_code(stderr, RED);
-				fprintf(stderr, "Failed to query files! (reallocation failure!)\n"); print_escape_code(stderr, RESET);
+				printf_escape_code(stderr, RED, "Failed to query files! (reallocation failure!)\n"); print_escape_code(stderr, RESET);
 				break;
 			} files = (struct file*)new_ptr;
 		}
@@ -144,8 +139,7 @@ uint16_t parse_arguments(const int argc, char** argv) {
 			args |= ARG_DIR_CONTS;
 		} else if(ISARG(argv[i], "-hr", "--human-readable")) {
 			if(argv[i+1]==NULL) {
-				print_escape_code(stderr, YELLOW);
-				fprintf(stderr, "\"%s\" is missing an argument on what type! (assumed none).\n", argv[i]); print_escape_code(stderr, RESET);
+				printf_escape_code(stderr, YELLOW,  "\"%s\" is missing an argument on what type! (assumed none).\n", argv[i]); print_escape_code(stderr, RESET);
 				return dir_argc;
 			} ++i;
 			switch(argv[i][0]) {
@@ -197,8 +191,7 @@ uint16_t parse_arguments(const int argc, char** argv) {
 				} continue;
 			}
 			
-			print_escape_code(stderr, YELLOW);
-			fprintf(stderr, "\"%s\" is not a valid argument!\n", argv[i]); print_escape_code(stderr, RESET);
+			printf_escape_code(stderr, YELLOW,  "\"%s\" is not a valid argument!\n", argv[i]); print_escape_code(stderr, RESET);
 			exit(1);
 		}
 	}
@@ -304,9 +297,7 @@ void list_files(const struct file* files, const uint16_t longest_fdescriptor, co
 
 	if(!file_t_map) init_filetype_dict();
 	if(!file_t_map) {
-		print_escape_code(stderr, RED);
-		fprintf(stderr, "Failed to allocate memory for file icon and color hashmapping\n");
-		print_escape_code(stderr, RESET);
+		printf_escape_code(stderr, RED, "Failed to allocate memory for file icon and color hashmapping\n"); print_escape_code(stderr, RESET);
 		return;
 	}
 	
@@ -450,14 +441,14 @@ int main(int argc, char** argv) {
 
 		struct stat st;
 		if(stat(argv[i], &st)==-1) {
-			print_escape_code(stderr, YELLOW);
-			fprintf(stderr, "Could not access "); print_escape_code(stderr, BLUE); fprintf(stderr, "%s!", argv[i]);
-			print_escape_code(stderr, YELLOW); fprintf(stderr, " (does it exist?)\n"); print_escape_code(stderr, RESET);
+			printf_escape_code(stderr, YELLOW,  "Could not access "); 
+			printf_escape_code(stderr, BLUE, "%s!", argv[i]);
+			printf_escape_code(stderr, YELLOW, " (does it exist?)\n"); print_escape_code(stderr, RESET);
 			continue;
 		} else if(!S_ISDIR(st.st_mode)) {
-			print_escape_code(stderr, YELLOW);
-			fprintf(stderr, "Could not access "); print_escape_code(stderr, BLUE); fprintf(stderr, "%s!", argv[i]);
-			print_escape_code(stderr, YELLOW); fprintf(stderr, " (is a file!)\n"); print_escape_code(stderr, RESET);
+			printf_escape_code(stderr, YELLOW, "Could not access "); 
+			printf_escape_code(stderr, BLUE, "%s!", argv[i]);
+			printf_escape_code(stderr, YELLOW, " (is a file!)\n"); print_escape_code(stderr, RESET);
 			continue;
 		}
 		print_escape_code(stdout, BLUE);

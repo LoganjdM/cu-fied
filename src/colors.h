@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdarg.h>
 #include <unistd.h>
 
 #define RED "\x1b[31m"
@@ -13,6 +14,7 @@
 
 #define RESET "\x1b[0m"
 
+
 const char* escape_code(FILE* fp, const char ansi[5]) {
 	if(isatty(fileno(fp))) {
 		return ansi;
@@ -23,4 +25,15 @@ int print_escape_code(FILE* fp, const char ansi[5]) {
 	const char* bytes = escape_code(fp, ansi);
 	if(!bytes) return 0;
 	return fputs(bytes, fp);
+}
+
+int printf_escape_code(FILE* fp, const char ansi[5], char* fmt, ...) {
+	fprintf(fp, "%s", escape_code(fp, ansi));
+
+	int printed = 0;
+	va_list args;
+	va_start(args, fmt);
+	printed += vfprintf(fp, fmt, args);
+	va_end(args);
+	return printed;
 }

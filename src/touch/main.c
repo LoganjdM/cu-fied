@@ -50,8 +50,7 @@ bool parse_args(const char* arg) {
 
 int main(int argc, char** argv) {
 	if(argc<=1) {
-		print_escape_code(stderr, RED);
-		puts("You need at least 1 file to create!");
+		printf_escape_code(stderr, RED, "You need at least 1 file to create!");
 		print_escape_code(stderr, RESET);
 		return -1;
 	}
@@ -66,8 +65,7 @@ int main(int argc, char** argv) {
 	
 		FILE* fp = fopen(argv[i], "w");
 		if(!fp) {
-			print_escape_code(stderr, RED);
-			printf("Failed to fill file %s! (%s)\n", argv[i], strerror(errno));
+			printf_escape_code(stderr, RED, "Failed to fill file %s! (%s)\n", argv[i], strerror(errno));
 			print_escape_code(stderr, RESET);
 			continue;
 		}
