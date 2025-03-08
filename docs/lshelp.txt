@@ -29,4 +29,4 @@ Arguments range from visual preferences to sorting or information to display on 
      -r, --recursive           TO BE ADDED
 
      -h, --help                displays this message.
-     -v, --version             display file version
+     -v, --version             display CU-Fied version

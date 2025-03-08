@@ -7,6 +7,7 @@
 #endif
 
 #include "../colors.h"
+#include "../app_info.h"
 #include "file_types.h"
 
 table_t* file_types = NULL;
@@ -26,6 +27,27 @@ bool init_table(void) {
 	return true;
 }
 
+#define ISARG(x, s, l) !strcmp(x, s) | !strcmp(x, l)
+bool parse_args(const char* arg) {
+	if(arg[0]=='-') {
+		if(ISARG(arg, "-h", "--help")) {
+			#ifndef __has_embed
+			const char help_message[] = "\0";
+			#else
+			const char help_message [] = {
+				#embed "../../docs/touchhelp.txt"	
+				, '\0'
+			};
+			#endif
+			puts(help_message);
+			exit(0);
+		} if(ISARG(arg, "-v", "--version")) {
+			puts(vers);
+			exit(0);
+		}
+	} return false;
+}
+
 int main(int argc, char** argv) {
 	if(argc<=1) {
 		print_escape_code(stderr, RED);
@@ -40,6 +62,8 @@ int main(int argc, char** argv) {
 	}
 
 	for(int i=1; i<argc; ++i) {
+		if(parse_args(argv[i])) continue;
+	
 		FILE* fp = fopen(argv[i], "w");
 		if(!fp) {
 			print_escape_code(stderr, RED);
