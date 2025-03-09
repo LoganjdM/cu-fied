@@ -19,7 +19,7 @@ pub const reset = c.RESET;
 
 // based off std.debug.print() source code //
 // https://ziglang.org/documentation/0.14.0/std/#src/std/debug.zig //
-pub fn print_escape_code(comptime stream: enum { stdout, stderr }, ansi: *const [5:0]u8, comptime fmt: []const u8, va_args: anytype) void {
+pub fn print(comptime stream: enum { stdout, stderr }, ansi: *const [5:0]u8, comptime fmt: []const u8, va_args: anytype) void {
     if (stream == .stdout) {
         const zig_stdout = io.getStdOut().writer();
 
