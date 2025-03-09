@@ -20,13 +20,15 @@ bool init_table(void) {
 	file_types = ht_create(25);
 	if(!file_types) return false;
 
-	file_types->put(file_types, "c", c_hello);	
-	file_types->put(file_types, "cpp", cpp_hello);	
-	file_types->put(file_types, "lua", lua_hello);
-	file_types->put(file_types, "tl", teal_hello);
-	file_types->put(file_types, "py", python_hello);
-	file_types->put(file_types, "cs", csharp_hello);
-	file_types->put(file_types, "zig", zig_hello);
+	file_types->put(file_types, "c", c_example);	
+	file_types->put(file_types, "cpp", cpp_example);	
+	file_types->put(file_types, "lua", lua_example);
+	file_types->put(file_types, "tl", teal_example);
+	file_types->put(file_types, "py", python_example);
+	file_types->put(file_types, "cs", csharp_example);
+	file_types->put(file_types, "zig", zig_example);
+	file_types->put(file_types, "txt", txt_example);
+	file_types->put(file_types, "md", markdown_example);
 	
 	return true;
 }
@@ -78,8 +80,8 @@ int main(int argc, char** argv) {
 	
 		FILE* fp = fopen(argv[i], "w");
 		if(!fp) {
-			printf_escape_code(stderr, RED, "Failed to fill file %s! (%s)\n", argv[i], strerror(errno));
-			print_escape_code(stderr, RESET);
+			printf_escape_code(stderr, RED, "Failed to fill file %s! (%s)", argv[i], strerror(errno));
+			printf_escape_code(stderr, RESET, "\n");
 			continue;
 		}
 		

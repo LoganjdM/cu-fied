@@ -106,12 +106,7 @@ pub fn build(b: *Build) !void {
 
     // Global
     global_check = b.step("check", "Check if all apps compile");
-    colors_module = b.addModule("colors", .{
-    	.root_source_file = b.path("src/colors.zig"),
-    	.target = target,
-    	.optimize = optimize,
-    	.link_libc = true
-    });
+    colors_module = b.addModule("colors", .{ .root_source_file = b.path("src/colors.zig"), .target = target, .optimize = optimize, .link_libc = true });
     colors_module.addIncludePath(b.path("src"));
     const fmt_step = b.step("fmt", "Format all zig code");
     const check_fmt_step = b.step("check-fmt", "Check formatting of all zig code");
