@@ -1,11 +1,9 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const print = std.debug.print;
 const Build = std.Build;
 const proc = std.process;
 
-var global_check: *Build.Step = undefined;
-fn add_build_steps(b: *Build, name: []const u8, check_exe: *Build.Step, run_exe: *Build.Step) !void {
+fn addBuildSteps(b: *Build, name: []const u8, check_exe: *Build.Step, run_exe: *Build.Step, global_check: *Build.Step) !void {
     var gpa: std.heap.DebugAllocator(.{}) = .init;
     defer std.debug.assert(gpa.deinit() == .ok);
     const alloc = gpa.allocator();
@@ -28,8 +26,7 @@ fn add_build_steps(b: *Build, name: []const u8, check_exe: *Build.Step, run_exe:
     run.dependOn(run_exe);
 }
 
-var cflags: [3][]const u8 = undefined;
-fn build_c(b: *Build, srcs: anytype, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8) !void {
+fn buildC(b: *Build, srcs: anytype, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, global_check: *Build.Step, cflags: [3][]const u8) !void {
     const exe = b.addExecutable(.{ .name = name, .root_module = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true }) });
 
     exe.root_module.addCSourceFiles(.{ .files = srcs, .flags = &cflags });
@@ -41,11 +38,11 @@ fn build_c(b: *Build, srcs: anytype, target: Build.ResolvedTarget, optimize: std
 
     const run_exe = b.addRunArtifact(exe);
     if (b.args) |args| run_exe.addArgs(args);
-    try add_build_steps(b, name, &exe_check.step, &run_exe.step);
+    try addBuildSteps(b, name, &exe_check.step, &run_exe.step, global_check);
 }
 
 var colors_module: *Build.Module = undefined;
-fn build_zig(b: *Build, main: Build.LazyPath, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8) !void {
+fn buildZig(b: *Build, main: Build.LazyPath, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, global_check: *Build.Step) !void {
     const exe = b.addExecutable(.{
         .name = name,
         .root_module = b.createModule(.{
@@ -55,6 +52,7 @@ fn build_zig(b: *Build, main: Build.LazyPath, target: Build.ResolvedTarget, opti
             .link_libc = true,
         }),
     });
+
     exe.root_module.addImport("colors", colors_module);
     b.installArtifact(exe);
 
@@ -71,19 +69,16 @@ fn build_zig(b: *Build, main: Build.LazyPath, target: Build.ResolvedTarget, opti
 
     const run_exe = b.addRunArtifact(exe);
     if (b.args) |args| run_exe.addArgs(args);
-    try add_build_steps(b, name, &exe_check.step, &run_exe.step);
+    try addBuildSteps(b, name, &exe_check.step, &run_exe.step, global_check);
 }
 
-fn run_help2man(self: *Build.Step, opt: Build.Step.MakeOptions) !void {
+fn runHelp2man(self: *Build.Step, opt: Build.Step.MakeOptions) !void {
     _ = self;
     _ = opt;
 
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     const alloc = arena.allocator();
-    defer {
-        _ = arena.reset(.free_all);
-        _ = arena.deinit();
-    }
+    defer arena.deinit();
 
     var help2man_result: proc.Child.RunResult = try proc.Child.run(.{ .allocator = alloc, .argv = &[_][]const u8{ "help2man", "zig-out/bin/lsf", "-o", "docs/lsf.1" } });
 
@@ -93,7 +88,7 @@ fn run_help2man(self: *Build.Step, opt: Build.Step.MakeOptions) !void {
 }
 
 pub fn build(b: *Build) !void {
-    cflags = if (b.release_mode == .off)
+    const cflags = if (b.release_mode == .off)
         .{ "-std=c23", "-g", "-D_DEFAULT_SOURCE" }
     else
         .{ "-std=c23", "-fstack-protector-all", "-D_DEFAULT_SOURCE" };
@@ -105,7 +100,7 @@ pub fn build(b: *Build) !void {
     const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseFast });
 
     // Global
-    global_check = b.step("check", "Check if all apps compile");
+    const global_check = b.step("check", "Check if all apps compile");
     colors_module = b.addModule("colors", .{ .root_source_file = b.path("src/colors.zig"), .target = target, .optimize = optimize, .link_libc = true });
     colors_module.addIncludePath(b.path("src"));
     const fmt_step = b.step("fmt", "Format all zig code");
@@ -129,11 +124,11 @@ pub fn build(b: *Build) !void {
 
     // LSF
     const lsf_src_files = [_][]const u8{ "src/ls/main.c", "src/ctypes/strbuild.c", "src/ctypes/table.c" };
-    try build_c(b, &lsf_src_files, target, optimize, "lsf");
+    try buildC(b, &lsf_src_files, target, optimize, "lsf", global_check, cflags);
 
     // TOUCHF
     const touchf_src_files = [_][]const u8{ "src/touch/main.c", "src/ctypes/table.c" };
-    try build_c(b, &touchf_src_files, target, optimize, "touchf");
+    try buildC(b, &touchf_src_files, target, optimize, "touchf", global_check, cflags);
 
     // MVF
     const mvf_main = b.path("src/file-io/mv/main.zig");
@@ -171,9 +166,9 @@ pub fn build(b: *Build) !void {
 
     // CPF
     const cpf = b.path("src/file-io/cp/main.zig");
-    try build_zig(b, cpf, target, optimize, "cpf");
+    try buildZig(b, cpf, target, optimize, "cpf", global_check);
 
     // generate man pages //
     const help2man = b.step("help2man", "Use GNU `help2man` to generate man pages.");
-    help2man.makeFn = run_help2man;
+    help2man.makeFn = runHelp2man;
 }
