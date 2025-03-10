@@ -26,7 +26,7 @@ fn addBuildSteps(b: *Build, name: []const u8, check_exe: *Build.Step, run_exe: *
     run.dependOn(run_exe);
 }
 
-fn buildC(b: *Build, srcs: anytype, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, global_check: *Build.Step, cflags: [3][]const u8) !void {
+fn buildC(b: *Build, srcs: anytype, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, global_check: *Build.Step, cflags: [4][]const u8) !void {
     const exe = b.addExecutable(.{ .name = name, .root_module = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true }) });
 
     exe.root_module.addCSourceFiles(.{ .files = srcs, .flags = &cflags });
@@ -89,9 +89,9 @@ fn runHelp2man(self: *Build.Step, opt: Build.Step.MakeOptions) !void {
 
 pub fn build(b: *Build) !void {
     const cflags = if (b.release_mode == .off)
-        .{ "-std=c23", "-g", "-D_DEFAULT_SOURCE" }
+        .{ "-std=c23", "-g", "-D_DEFAULT_SOURCE", "-DC23" }
     else
-        .{ "-std=c23", "-fstack-protector-all", "-D_DEFAULT_SOURCE" };
+        .{ "-std=c23", "-fstack-protector-all", "-D_DEFAULT_SOURCE", "-DC23" };
 
     // General options
     const target = b.standardTargetOptions(.{ .default_target = .{
@@ -101,8 +101,15 @@ pub fn build(b: *Build) !void {
 
     // Global
     const global_check = b.step("check", "Check if all apps compile");
+    
+    const colors_h = b.addTranslateC(.{
+    	.root_source_file = b.path("src/colors.h"),
+    	.target = target,
+    	.optimize = optimize
+    });
+    const colors_h_module = colors_h.createModule();
     colors_module = b.addModule("colors", .{ .root_source_file = b.path("src/colors.zig"), .target = target, .optimize = optimize, .link_libc = true });
-    colors_module.addIncludePath(b.path("src"));
+    colors_module.addImport("colors_h", colors_h_module);
     const fmt_step = b.step("fmt", "Format all zig code");
     const check_fmt_step = b.step("check-fmt", "Check formatting of all zig code");
 

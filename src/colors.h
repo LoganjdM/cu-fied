@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <unistd.h>
-#ifndef __has_embed
+#ifndef C23
 #	include <stdbool.h>
 #endif
 

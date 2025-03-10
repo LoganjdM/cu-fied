@@ -1,10 +1,7 @@
 const std = @import("std");
 const io = std.io;
 const debug = std.debug;
-const c = @cImport({
-    @cInclude("stdbool.h");
-    @cInclude("colors.h");
-});
+const c = @import("colors_h");
 
 pub const red = c.RED;
 pub const blue = c.BLUE;
