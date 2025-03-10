@@ -3,8 +3,8 @@ const log = std.log;
 const stdout = std.io.getStdOut();
 const stderr = std.io.getStdErr();
 const color = @import("colors");
-const IsDebug = (@import("builtin").mode == std.builtin.OptimizeMode.Debug);
-const debug = std.debug;
+const is_debug = (@import("builtin").mode == std.builtin.OptimizeMode.Debug);
+const fs = std.fs;
 // const zon = @import("../../../build.zig.zon"); // how get .version tag on `build.zig.zon`?
 
 const params = enum(u16) {
@@ -19,7 +19,7 @@ fn isArg(arg: [*:0]const u8, comptime short: []const u8, comptime long: []const 
     return std.mem.eql(u8, arg[0..short.len], short) or std.mem.eql(u8, arg[0..long.len], long);
 }
 
-fn parseArgs(argv: [][*:0]u8, files: *std.ArrayListAligned([*:0]u8, null)) error{ OutOfMemory, Einval }!u16 {
+fn parseArgs(argv: [][*:0]u8, files: *std.ArrayListAligned([*:0]u8, null)) error{ OutOfMemory, InvalidArgument }!u16 {
     var args: u16 = 0b0;
 
     for (argv, 0..) |arg, i| {
@@ -49,7 +49,7 @@ fn parseArgs(argv: [][*:0]u8, files: *std.ArrayListAligned([*:0]u8, null)) error
             std.process.exit(0);
         }
     }
-    if (files.items.len < 2) return error.Einval;
+    if (files.items.len < 2) return error.InvalidArgument;
 
     return args;
 }
@@ -63,7 +63,7 @@ pub fn main() u8 {
     defer files.deinit();
 
     const args = parseArgs(std.os.argv, &files) catch |err| {
-        if (err == error.Einval) {
+        if (err == error.InvalidArgument) {
             const msg = if (files.items.len == 0) "Missing file arguments!" else "Missing destination file argument!";
             color.print(stderr, color.red, "{s}\n", .{msg});
             return 2;
@@ -73,10 +73,36 @@ pub fn main() u8 {
         }
     };
 
-    log.debug("operands:\n", .{});
-    for (files.items) |file| {
-        log.debug("\t{s}\n", .{file});
+    // lets not iterate over files.items if we aren't printing them //
+    if (is_debug) {
+        log.debug("operands:\n", .{});
+        for (files.items) |file| {
+            log.debug("\t{s}\n", .{file});
+        }
+        log.debug("args: {b}", .{args});
     }
-    color.print(stdout, color.green, "{}", .{args});
+
+    const dest: []u8 = gpa_alloc.alloc(u8, files.items[files.items.len - 1 ..].len) catch {
+        color.print(stderr, color.red, "Failed to allocate memory for destination file argument!\n", .{});
+        return 1;
+    };
+    @memcpy(dest, files.pop().?);
+    defer gpa_alloc.free(dest);
+    fs.accessAbsolute(dest, .{ .mode = .read_only }) catch |err| {
+        color.print(stderr, color.red, "Failed to open", .{});
+        color.print(stderr, color.blue, " {s}", .{dest});
+        const reason = blk: {
+            if (err == error.PermissionDenied) break :blk " (Do you have permission?)";
+            if (err == error.FileNotFound) break :blk " (does it exist?)";
+            if (err == error.BadPathName) break :blk " (is it a valid path?)";
+            break :blk "";
+        };
+        color.print(stderr, color.red, "{s}!\n", .{reason});
+        return 3;
+    };
+
+    for (files.items) |file| {
+        _ = file;
+    }
     return 0;
 }
