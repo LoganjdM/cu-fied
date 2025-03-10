@@ -15,11 +15,11 @@ const params = enum(u16) {
     verbose = 0b10000,
 };
 
-fn is_arg(arg: [*:0]const u8, comptime short: []const u8, comptime long: []const u8) bool {
+fn isArg(arg: [*:0]const u8, comptime short: []const u8, comptime long: []const u8) bool {
     return std.mem.eql(u8, arg[0..short.len], short) or std.mem.eql(u8, arg[0..long.len], long);
 }
 
-fn parse_args(argv: [][*:0]u8, files: *std.ArrayListAligned([*:0]u8, null)) error{ OutOfMemory, Einval }!void {
+fn parseArgs(argv: [][*:0]u8, files: *std.ArrayListAligned([*:0]u8, null)) error{ OutOfMemory, Einval }!void {
     for (argv, 0..) |arg, i| {
         if (i == 0) continue; // skip exec
 
@@ -28,21 +28,21 @@ fn parse_args(argv: [][*:0]u8, files: *std.ArrayListAligned([*:0]u8, null)) erro
             continue;
         }
 
-        if (is_arg(arg, "-r", "--recursive")) {
+        if (isArg(arg, "-r", "--recursive")) {
             args |= @intFromEnum(params.recursive);
-        } else if (is_arg(arg, "-f", "--force")) {
+        } else if (isArg(arg, "-f", "--force")) {
             args |= @intFromEnum(params.force);
-        } else if (is_arg(arg, "-l", "--link")) {
+        } else if (isArg(arg, "-l", "--link")) {
             args |= @intFromEnum(params.link);
-        } else if (is_arg(arg, "-i", "--interactive")) {
+        } else if (isArg(arg, "-i", "--interactive")) {
             args |= @intFromEnum(params.interactive);
-        } else if (is_arg(arg, "-v", "--verbose")) {
+        } else if (isArg(arg, "-v", "--verbose")) {
             args |= @intFromEnum(params.verbose);
-        } else if (is_arg(arg, "-h", "--help")) {
+        } else if (isArg(arg, "-h", "--help")) {
             const help_message = @embedFile("help.txt");
             nosuspend stdout.writer().print(help_message, .{}) catch continue; // eh dont give a shi, we are closing anyways //
             std.process.exit(0);
-        } else if (is_arg(arg, "-v", "--version")) {
+        } else if (isArg(arg, "-v", "--version")) {
             // stdout.print("{i}", .{.version}); // how get .version tag on `build.zig.zon`?
             std.process.exit(0);
         }
@@ -60,7 +60,7 @@ pub fn main() u8 {
     var files = std.ArrayList([*:0]u8).init(gpa_alloc);
     defer files.deinit();
 
-    parse_args(std.os.argv, &files) catch |err| {
+    parseArgs(std.os.argv, &files) catch |err| {
         if (err == error.Einval) {
             const msg = if (files.items.len == 0) "Missing file arguments!" else "Missing destination file argument!";
             color.print(stderr, color.red, "{s}\n", .{msg});
