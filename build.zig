@@ -101,12 +101,8 @@ pub fn build(b: *Build) !void {
 
     // Global
     const global_check = b.step("check", "Check if all apps compile");
-    
-    const colors_h = b.addTranslateC(.{
-    	.root_source_file = b.path("src/colors.h"),
-    	.target = target,
-    	.optimize = optimize
-    });
+
+    const colors_h = b.addTranslateC(.{ .root_source_file = b.path("src/colors.h"), .target = target, .optimize = optimize });
     const colors_h_module = colors_h.createModule();
     colors_module = b.addModule("colors", .{ .root_source_file = b.path("src/colors.zig"), .target = target, .optimize = optimize, .link_libc = true });
     colors_module.addImport("colors_h", colors_h_module);
