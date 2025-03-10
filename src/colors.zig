@@ -17,16 +17,15 @@ pub const italic = c.ITALIC;
 
 pub const reset = c.RESET;
 
+pub fn escapeCode(fp: std.fs.File, ansi: *const [5:0]u8) [*c]const u8 {
+	if(std.c.isatty(fp.handle) == 1) {
+		return @ptrCast(ansi);
+	} return "";
+}
+
 // based off std.debug.print() source code //
 // https://ziglang.org/documentation/0.14.0/std/#src/std/debug.zig //
-pub fn print(comptime stream: enum { stdout, stderr }, ansi: *const [5:0]u8, comptime fmt: []const u8, va_args: anytype) void {
-    if (stream == .stdout) {
-        const zig_stdout = io.getStdOut().writer();
-
-        nosuspend zig_stdout.print("{s}", .{c.escape_code(c.stdout, ansi)}) catch return;
-        nosuspend zig_stdout.print(fmt, va_args) catch return;
-    } else {
-        _ = c.print_escape_code(c.stderr, ansi);
-        debug.print(fmt, va_args);
-    }
+pub fn print(comptime stream: std.fs.File, ansi: *const [5:0]u8, comptime fmt: []const u8, va_args: anytype) void {
+        nosuspend stream.writer().print("{s}", .{c.escape_code(c.stdout, ansi)}) catch return;
+        nosuspend stream.writer().print(fmt, va_args) catch return;
 }

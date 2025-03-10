@@ -1,5 +1,6 @@
 const std = @import("std");
-const stdout = std.io.getStdOut().writer();
+const stdout = std.io.getStdOut();
+const stderr = std.io.getStdErr();
 const color = @import("colors");
 const IsDebug = (@import("builtin").mode == std.builtin.OptimizeMode.Debug);
 const debug = std.debug;
@@ -39,7 +40,7 @@ fn parse_args(argv: [][*:0]u8, files: *std.ArrayListAligned([*:0]u8, null)) erro
             args |= @intFromEnum(params.verbose);
         } else if (is_arg(arg, "-h", "--help")) {
             const help_message = @embedFile("help.txt");
-            nosuspend stdout.print(help_message, .{}) catch continue; // eh dont give a shi, we are closing anyways //
+            nosuspend stdout.writer().print(help_message, .{}) catch continue; // eh dont give a shi, we are closing anyways //
             std.process.exit(0);
         } else if (is_arg(arg, "-v", "--version")) {
             // stdout.print("{i}", .{.version}); // how get .version tag on `build.zig.zon`?
@@ -62,10 +63,10 @@ pub fn main() u8 {
     parse_args(std.os.argv, &files) catch |err| {
         if (err == error.Einval) {
             const msg = if (files.items.len == 0) "Missing file arguments!" else "Missing destination file argument!";
-            color.print(.stderr, color.red, "{s}\n", .{msg});
+            color.print(stderr, color.red, "{s}\n", .{msg});
             return 2;
         } else {
-            color.print(.stderr, color.red, "Failed to reallocate memory for extra file aguments!\n", .{});
+            color.print(stderr, color.red, "Failed to reallocate memory for extra file aguments!\n", .{});
             return 1;
         }
     };
@@ -77,5 +78,6 @@ pub fn main() u8 {
         }
         debug.print("args: {b}\n", .{args});
     }
+    color.print(stdout, color.green, "test!\n", .{});
     return 0;
 }
