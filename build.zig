@@ -8,18 +8,22 @@ fn addBuildSteps(b: *Build, name: []const u8, check_exe: *Build.Step, run_exe: *
     defer std.debug.assert(gpa.deinit() == .ok);
     const alloc = gpa.allocator();
 
+    // Generate `check-*` step.
     const check_str = try std.fmt.allocPrint(alloc, "check-{s}", .{name});
-    const check_desc_str = try std.fmt.allocPrint(alloc, "See if {s} compiles", .{name});
     defer alloc.free(check_str);
+
+    const check_desc_str = try std.fmt.allocPrint(alloc, "See if {s} compiles", .{name});
     defer alloc.free(check_desc_str);
 
     const check = b.step(check_str, check_desc_str);
     check.dependOn(check_exe);
     global_check.dependOn(check_exe);
 
+    // Generate `run-*` step.
     const run_str = try std.fmt.allocPrint(alloc, "run-{s}", .{name});
-    const run_desc_str = try std.fmt.allocPrint(alloc, "Run {s}", .{name});
     defer alloc.free(run_str);
+
+    const run_desc_str = try std.fmt.allocPrint(alloc, "Run {s}", .{name});
     defer alloc.free(run_desc_str);
 
     const run = b.step(run_str, run_desc_str);
@@ -27,50 +31,68 @@ fn addBuildSteps(b: *Build, name: []const u8, check_exe: *Build.Step, run_exe: *
 }
 
 fn buildC(b: *Build, srcs: anytype, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, global_check: *Build.Step, cflags: [4][]const u8) !void {
-    const exe = b.addExecutable(.{ .name = name, .root_module = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true }) });
+    const module = b.createModule(.{
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+    module.addCSourceFiles(.{
+        .files = srcs,
+        .flags = &cflags,
+    });
 
-    exe.root_module.addCSourceFiles(.{ .files = srcs, .flags = &cflags });
+    const exe = b.addExecutable(.{
+        .name = name,
+        .root_module = module,
+    });
     b.installArtifact(exe);
 
-    const exe_check = b.addExecutable(.{ .name = name, .root_module = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true }) });
-
-    exe_check.root_module.addCSourceFiles(.{ .files = srcs, .flags = &cflags });
+    const exe_check = b.addExecutable(.{
+        .name = name,
+        .root_module = module,
+    });
 
     const run_exe = b.addRunArtifact(exe);
     if (b.args) |args| run_exe.addArgs(args);
     try addBuildSteps(b, name, &exe_check.step, &run_exe.step, global_check);
 }
 
+<<<<<<< HEAD
 // var colors_module: *Build.Module = undefined;
 // how the fuck do array args? ifgdk i'm tired and just played utakill for like 2 hours so my brain no workey //
 // ehh fuck it, make it anytype and treat it as an array. this is basically like just doing void*, this sucks //
 fn buildZig(b: *Build, main: Build.LazyPath, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, modules: anytype, module_names: anytype, global_check: *Build.Step) !void {
     if (module_names.len != modules.len) @panic("modules and module_len should have the same len!");
 
+=======
+fn buildZig(b: *Build, main: Build.LazyPath, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, global_check: *Build.Step, colors_module: *Build.Module) !void {
+    const module = b.createModule(.{
+        .root_source_file = main,
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+        .imports = &.{
+            .{ .name = "colors", .module = colors_module },
+        },
+    });
+>>>>>>> 7711fdb81616503b7bfe3724a291e78f67040436
     const exe = b.addExecutable(.{
         .name = name,
-        .root_module = b.createModule(.{
-            .root_source_file = main,
-            .target = target,
-            .optimize = optimize,
-            .link_libc = true,
-        }),
+        .root_module = module,
     });
 
+<<<<<<< HEAD
     for (modules, 0..) |module, i| {
         exe.root_module.addImport(module_names[i], module);
     }
     // exe.root_module.addImport("colors", colors_module);
+=======
+>>>>>>> 7711fdb81616503b7bfe3724a291e78f67040436
     b.installArtifact(exe);
 
     const exe_check = b.addExecutable(.{
         .name = name,
-        .root_module = b.createModule(.{
-            .root_source_file = main,
-            .target = target,
-            .optimize = optimize,
-            .link_libc = true,
-        }),
+        .root_module = module,
     });
     for (modules, 0..) |module, i| {
         exe_check.root_module.addImport(module_names[i], module);
@@ -125,13 +147,23 @@ pub fn build(b: *Build) !void {
     // Dependencies
     const clap = b.dependency("clap", .{});
 
+<<<<<<< HEAD
     const colors_h = b.addTranslateC(.{ .root_source_file = b.path("src/colors.h"), .target = target, .optimize = optimize });
+=======
+    // Utilities
+    const colors_h = b.addTranslateC(.{
+        .root_source_file = b.path("src/colors.h"),
+        .target = target,
+        .optimize = optimize,
+    });
+>>>>>>> 7711fdb81616503b7bfe3724a291e78f67040436
     const colors_h_module = colors_h.createModule();
     const colors_module = b.addModule("colors", .{
         .root_source_file = b.path("src/colors.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
+<<<<<<< HEAD
     });
     colors_module.addImport("colors_h", colors_h_module);
 
@@ -139,6 +171,11 @@ pub fn build(b: *Build) !void {
         .root_source_file = b.path("src/file-io/copy.zig"),
         .target = target,
         .optimize = optimize,
+=======
+        .imports = &.{
+            .{ .name = "colors_h", .module = colors_h_module },
+        },
+>>>>>>> 7711fdb81616503b7bfe3724a291e78f67040436
     });
 
     // First update versioning's on the C side.. //
@@ -191,7 +228,11 @@ pub fn build(b: *Build) !void {
 
     // CPF
     const cpf = b.path("src/file-io/cp/main.zig");
+<<<<<<< HEAD
     try buildZig(b, cpf, target, optimize, "cpf", &[_]*Build.Module{ colors_module, copy_module }, [_][]const u8{ "colors", "copy" }, global_check);
+=======
+    try buildZig(b, cpf, target, optimize, "cpf", global_check, colors_module);
+>>>>>>> 7711fdb81616503b7bfe3724a291e78f67040436
 
     // generate man pages //
     const help2man = b.step("help2man", "Use GNU `help2man` to generate man pages.");

@@ -3,7 +3,6 @@ const log = std.log;
 const stdout = std.io.getStdOut();
 const stderr = std.io.getStdErr();
 const color = @import("colors");
-const is_debug = (@import("builtin").mode == std.builtin.OptimizeMode.Debug);
 const fs = std.fs;
 // const zon = @import("../../../build.zig.zon"); // how get .version tag on `build.zig.zon`?
 
@@ -89,13 +88,20 @@ pub fn main() u8 {
     };
 
     // lets not iterate over files.items if we aren't printing them //
+<<<<<<< HEAD
     if (is_debug) {
         log.debug("operands:", .{});
         for (files.items) |file| {
             log.debug("\t{s}", .{file});
         }
         log.debug("args: {b}", .{args});
+=======
+    log.debug("operands:\n", .{});
+    for (files.items) |file| {
+        log.debug("\t{s}\n", .{file});
+>>>>>>> 7711fdb81616503b7bfe3724a291e78f67040436
     }
+    log.debug("args: {b}", .{args});
 
     const dest: []u8 = gpa_alloc.alloc(u8, files.items.len + 1) catch {
         color.print(stderr, color.red, "Failed to allocate memory for destination file argument!\n", .{});
