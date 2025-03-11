@@ -167,32 +167,30 @@ pub fn build(b: *Build) !void {
 
     // MVF
     const mvf_main = b.path("src/file-io/mv/main.zig");
+    const mvf_module = b.createModule(.{
+        .root_source_file = mvf_main,
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+        .imports = &.{
+            .{ .name = "clap", .module = clap.module("clap") },
+        },
+    });
 
     const mvf_exe = b.addExecutable(.{
         .name = "mvf",
-        .root_module = b.createModule(.{
-            .root_source_file = mvf_main,
-            .target = target,
-            .optimize = optimize,
-            .link_libc = true,
-        }),
+        .root_module = mvf_module,
     });
-    mvf_exe.root_module.addImport("clap", clap.module("clap"));
     b.installArtifact(mvf_exe);
 
     const mvf_exe_check = b.addExecutable(.{
         .name = "mvf",
-        .root_module = b.createModule(.{
-            .root_source_file = mvf_main,
-            .target = target,
-            .optimize = optimize,
-            .link_libc = true,
-        }),
+        .root_module = mvf_module,
     });
-    mvf_exe_check.root_module.addImport("clap", clap.module("clap"));
 
     const mvf_check = b.step("check-mvf", "Check if MVF compiles");
     mvf_check.dependOn(&mvf_exe_check.step);
+    global_check.dependOn(&mvf_exe_check.step);
 
     const run_mvf_exe = b.addRunArtifact(mvf_exe);
     if (b.args) |args| run_mvf_exe.addArgs(args);
