@@ -1,36 +1,27 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const Build = std.Build;
-const proc = std.process;
 
-fn addBuildSteps(b: *Build, name: []const u8, check_exe: *Build.Step, run_exe: *Build.Step, global_check: *Build.Step) !void {
-    var gpa: std.heap.DebugAllocator(.{}) = .init;
-    defer std.debug.assert(gpa.deinit() == .ok);
-    const alloc = gpa.allocator();
-
+fn addBuildSteps(b: *Build, name: []const u8, check_exe: *Build.Step, run_exe: *Build.Step, global_check: *Build.Step) void {
     // Generate `check-*` step.
-    const check_str = try std.fmt.allocPrint(alloc, "check-{s}", .{name});
-    defer alloc.free(check_str);
+    const check_str = b.fmt("check-{s}", .{name});
 
-    const check_desc_str = try std.fmt.allocPrint(alloc, "See if {s} compiles", .{name});
-    defer alloc.free(check_desc_str);
+    const check_desc_str = b.fmt("See if {s} compiles", .{name});
 
     const check = b.step(check_str, check_desc_str);
     check.dependOn(check_exe);
     global_check.dependOn(check_exe);
 
     // Generate `run-*` step.
-    const run_str = try std.fmt.allocPrint(alloc, "run-{s}", .{name});
-    defer alloc.free(run_str);
+    const run_str = b.fmt("run-{s}", .{name});
 
-    const run_desc_str = try std.fmt.allocPrint(alloc, "Run {s}", .{name});
-    defer alloc.free(run_desc_str);
+    const run_desc_str = b.fmt("Run {s}", .{name});
 
     const run = b.step(run_str, run_desc_str);
     run.dependOn(run_exe);
 }
 
-fn buildC(b: *Build, srcs: anytype, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, global_check: *Build.Step, cflags: [4][]const u8) !void {
+fn buildC(b: *Build, srcs: anytype, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, global_check: *Build.Step, cflags: [5][]const u8) void {
     const module = b.createModule(.{
         .target = target,
         .optimize = optimize,
@@ -54,18 +45,17 @@ fn buildC(b: *Build, srcs: anytype, target: Build.ResolvedTarget, optimize: std.
 
     const run_exe = b.addRunArtifact(exe);
     if (b.args) |args| run_exe.addArgs(args);
-    try addBuildSteps(b, name, &exe_check.step, &run_exe.step, global_check);
+    addBuildSteps(b, name, &exe_check.step, &run_exe.step, global_check);
 }
 
-// rahh eli pushed like 20 minutes ago and I didn't notice //
-// i was about to get off, I should get rid of anytype but thats future me problem if it works it works //
-fn buildZig(b: *Build, main: Build.LazyPath, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, modules: anytype, module_names: anytype, global_check: *Build.Step) !void {
-    if (module_names.len != modules.len) @panic("modules and module_len should have the same len!");
-    const module = b.createModule(.{ .root_source_file = main, .target = target, .optimize = optimize, .link_libc = true });
-    for (modules, 0..) |module_import, i| {
-        module.addImport(module_names[i], module_import);
-    }
-
+fn buildZig(b: *Build, main: Build.LazyPath, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, global_check: *Build.Step, imports: []const Build.Module.Import) void {
+    const module = b.createModule(.{
+        .root_source_file = main,
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+        .imports = imports,
+    });
     const exe = b.addExecutable(.{
         .name = name,
         .root_module = module,
@@ -80,29 +70,35 @@ fn buildZig(b: *Build, main: Build.LazyPath, target: Build.ResolvedTarget, optim
 
     const run_exe = b.addRunArtifact(exe);
     if (b.args) |args| run_exe.addArgs(args);
-    try addBuildSteps(b, name, &exe_check.step, &run_exe.step, global_check);
+    addBuildSteps(b, name, &exe_check.step, &run_exe.step, global_check);
 }
 
-fn runHelp2man(self: *Build.Step, opt: Build.Step.MakeOptions) !void {
-    _ = self;
-    _ = opt;
+fn runHelp2man(step: *Build.Step, _: Build.Step.MakeOptions) !void {
+    const b = step.owner;
 
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    const alloc = arena.allocator();
-    defer arena.deinit();
+    const clis = [_][]const u8{ "lsf", "mvf", "touchf" };
 
-    var help2man_result: proc.Child.RunResult = try proc.Child.run(.{ .allocator = alloc, .argv = &[_][]const u8{ "help2man", "zig-out/bin/lsf", "-o", "docs/lsf.1" } });
+    for (clis) |cli| {
+        const tool_run = b.addSystemCommand(&.{"help2man"});
+        tool_run.addArgs(&.{
+            b.fmt("zig-out/bin/{s}", .{cli}),
+            "-o",
+            b.fmt("docs/{s}.1", .{cli}),
+        });
+        tool_run.addFileArg(b.path(""));
 
-    help2man_result = try proc.Child.run(.{ .allocator = alloc, .argv = &[_][]const u8{ "help2man", "zig-out/bin/mvf", "-o", "docs/mvf.1" } });
-
-    help2man_result = try proc.Child.run(.{ .allocator = alloc, .argv = &[_][]const u8{ "help2man", "zig-out/bin/touchf", "-o", "docs/touchf.1" } });
+        _ = tool_run.captureStdOut();
+    }
 }
 
 pub fn build(b: *Build) !void {
-    const cflags = if (b.release_mode == .off)
-        .{ "-std=c23", "-g", "-D_DEFAULT_SOURCE", "-DC23" }
-    else
-        .{ "-std=c23", "-fstack-protector-all", "-D_DEFAULT_SOURCE", "-DC23" };
+    const cflags = [_][]const u8{
+        "-std=c23",
+        if (b.release_mode == .off) "-g" else "",
+        if (b.release_mode == .safe) "-fstack-protector-all" else "",
+        "-D_DEFAULT_SOURCE",
+        "-DC23",
+    };
 
     // General options
     const target = b.standardTargetOptions(.{ .default_target = .{
@@ -152,6 +148,11 @@ pub fn build(b: *Build) !void {
         },
     });
 
+    const imports: []const Build.Module.Import = &.{
+        .{ .name = "colors", .module = colors_module },
+        .{ .name = "copy", .module = copy_module },
+    };
+
     // First update versioning's on the C side.. //
     var fp: std.fs.File = try std.fs.cwd().openFile("src/app_info.h", .{ .mode = .write_only });
     // TODO: get this to grab `.version` in build.zig.zon //
@@ -160,11 +161,11 @@ pub fn build(b: *Build) !void {
 
     // LSF
     const lsf_src_files = [_][]const u8{ "src/ls/main.c", "src/ctypes/strbuild.c", "src/ctypes/table.c" };
-    try buildC(b, &lsf_src_files, target, optimize, "lsf", global_check, cflags);
+    buildC(b, &lsf_src_files, target, optimize, "lsf", global_check, cflags);
 
     // TOUCHF
     const touchf_src_files = [_][]const u8{ "src/touch/main.c", "src/ctypes/table.c" };
-    try buildC(b, &touchf_src_files, target, optimize, "touchf", global_check, cflags);
+    buildC(b, &touchf_src_files, target, optimize, "touchf", global_check, cflags);
 
     // MVF
     const mvf_main = b.path("src/file-io/mv/main.zig");
@@ -202,7 +203,7 @@ pub fn build(b: *Build) !void {
 
     // CPF
     const cpf = b.path("src/file-io/cp/main.zig");
-    try buildZig(b, cpf, target, optimize, "cpf", &[_]*Build.Module{ colors_module, copy_module }, [_][]const u8{ "colors", "copy" }, global_check);
+    buildZig(b, cpf, target, optimize, "cpf", global_check, imports);
 
     // generate man pages //
     const help2man = b.step("help2man", "Use GNU `help2man` to generate man pages.");
