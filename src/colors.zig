@@ -1,6 +1,4 @@
 const std = @import("std");
-const io = std.io;
-const debug = std.debug;
 const c = @import("colors_h");
 
 pub const red = c.RED;

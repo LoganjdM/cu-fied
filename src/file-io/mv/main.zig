@@ -1,6 +1,6 @@
 const std = @import("std");
 const mem = std.mem;
-const Allocator = std.mem.Allocator;
+const Allocator = mem.Allocator;
 const clap = @import("clap");
 
 const params = clap.parseParamsComptime(
