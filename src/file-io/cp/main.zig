@@ -6,23 +6,28 @@ const color = @import("colors");
 const fs = std.fs;
 // const zon = @import("../../../build.zig.zon"); // how get .version tag on `build.zig.zon`?
 
-const params = enum(u16) {
-    recursive = 0b1,
-    force = 0b10,
-    link = 0b100,
-    interactive = 0b1000,
-    verbose = 0b10000,
+const Params = packed struct {
+    recursive: bool,
+    force: bool,
+    link: bool,
+    interactive: bool,
+    verbose: bool,
+
+    pub const init: Params = .{
+        .recursive = false,
+        .force = false,
+        .link = false,
+        .interactive = false,
+        .verbose = false,
+    };
 };
-fn argGiven(args: u16, arg: params) bool {
-    return (args & @intFromEnum(arg)) != 0;
-}
 
 fn isArg(arg: [*:0]const u8, comptime short: []const u8, comptime long: []const u8) bool {
     return std.mem.eql(u8, arg[0..short.len], short) or std.mem.eql(u8, arg[0..long.len], long);
 }
 
-fn parseArgs(argv: [][*:0]u8, files: *std.ArrayListAligned([*:0]u8, null)) error{ OutOfMemory, InvalidArgument }!u16 {
-    var args: u16 = 0b0; // lmao eli
+fn parseArgs(argv: [][*:0]u8, files: *std.ArrayListAligned([*:0]u8, null)) error{ OutOfMemory, InvalidArgument }!Params {
+    var args: Params = .init;
 
     for (argv, 0..) |arg, i| {
         if (i == 0) continue; // skip exec
@@ -33,15 +38,15 @@ fn parseArgs(argv: [][*:0]u8, files: *std.ArrayListAligned([*:0]u8, null)) error
         }
 
         if (isArg(arg, "-r", "--recursive")) {
-            args |= @intFromEnum(params.recursive);
+            args.recursive = true;
         } else if (isArg(arg, "-f", "--force")) {
-            args |= @intFromEnum(params.force);
+            args.force = true;
         } else if (isArg(arg, "-l", "--link")) {
-            args |= @intFromEnum(params.link);
+            args.link = true;
         } else if (isArg(arg, "-i", "--interactive")) {
-            args |= @intFromEnum(params.interactive);
+            args.interactive = true;
         } else if (isArg(arg, "-v", "--verbose")) {
-            args |= @intFromEnum(params.verbose);
+            args.verbose = true;
         } else if (isArg(arg, "-h", "--help")) {
             const help_message = @embedFile("help.txt");
             nosuspend stdout.writer().print(help_message, .{}) catch continue; // eh dont give a shi, we are closing anyways //
@@ -68,8 +73,9 @@ fn getLongestOperand(files: [][*:0]u8) usize {
 fn zigStrToC(str: []u8) [*c]u8 {
     return @ptrCast(str);
 }
+
 pub fn main() u8 {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa: std.heap.DebugAllocator(.{}) = .init;
     const gpa_alloc = gpa.allocator();
     defer _ = gpa.deinit();
 
@@ -91,7 +97,6 @@ pub fn main() u8 {
     for (files.items) |file| {
         log.debug("\t{s}\n", .{file});
     }
-    log.debug("args: {b}", .{args});
 
     const dest: []u8 = gpa_alloc.alloc(u8, files.items.len + 1) catch {
         color.print(stderr, color.red, "Failed to allocate memory for destination file argument!\n", .{});
@@ -103,7 +108,7 @@ pub fn main() u8 {
     var dot_count: u8 = 0;
     const longest_operand = getLongestOperand(files.items);
     for (files.items) |file_slice| {
-        // these *:0 are really fucking annoying so fuck it do it the c way of looking for \0 //
+        // these *:0 are really fucking annoying so do it the c way of looking for \0 //
         const file: []u8 = gpa_alloc.alloc(u8, std.mem.len(file_slice)) catch {
             color.print(stderr, color.red, "Failed to allocate memory for source file argument!\n", .{});
             continue;
@@ -111,7 +116,7 @@ pub fn main() u8 {
         @memcpy(file, file_slice);
         defer gpa_alloc.free(file);
 
-        if (argGiven(args, params.verbose)) {
+        if (args.verbose) {
             if (dot_count < 3) dot_count += 1 else dot_count -= 2;
             const padding = (longest_operand + 4 - file.len);
             // printf may as well be its own programming language kek //
@@ -120,7 +125,7 @@ pub fn main() u8 {
 
         // does this file exist? //
         fs.cwd().access(file, .{ .mode = .read_only }) catch |err| {
-            if (!argGiven(args, params.verbose)) continue;
+            if (!args.verbose) continue;
 
             color.print(stderr, color.red, "Failed to open", .{});
             color.print(stderr, color.blue, " {s}", .{file});
