@@ -4,20 +4,18 @@ const Build = std.Build;
 
 fn addBuildSteps(b: *Build, name: []const u8, check_exe: *Build.Step, run_exe: *Build.Step, global_check: *Build.Step) void {
     // Generate `check-*` step.
-    const check_str = b.fmt("check-{s}", .{name});
-
-    const check_desc_str = b.fmt("See if {s} compiles", .{name});
-
-    const check = b.step(check_str, check_desc_str);
+    const check = b.step(
+        b.fmt("check-{s}", .{name}),
+        b.fmt("See if {s} compiles", .{name}),
+    );
     check.dependOn(check_exe);
     global_check.dependOn(check_exe);
 
     // Generate `run-*` step.
-    const run_str = b.fmt("run-{s}", .{name});
-
-    const run_desc_str = b.fmt("Run {s}", .{name});
-
-    const run = b.step(run_str, run_desc_str);
+    const run = b.step(
+        b.fmt("run-{s}", .{name}),
+        b.fmt("Run {s}", .{name}),
+    );
     run.dependOn(run_exe);
 }
 
