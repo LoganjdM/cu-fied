@@ -135,8 +135,8 @@ pub fn build(b: *Build) !void {
         },
     });
 
-    const copy_module = b.addModule("copy", .{
-        .root_source_file = b.path("src/file-io/copy.zig"),
+    const file_io_module = b.addModule("file_io", .{
+        .root_source_file = b.path("src/file-io/file-io.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
@@ -146,7 +146,7 @@ pub fn build(b: *Build) !void {
 
     const imports: []const Build.Module.Import = &.{
         .{ .name = "colors", .module = colors_module },
-        .{ .name = "copy", .module = copy_module },
+        .{ .name = "file_io", .module = file_io_module },
     };
 
     // First update versioning's on the C side.. //

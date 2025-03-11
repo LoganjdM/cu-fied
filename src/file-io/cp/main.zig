@@ -3,6 +3,7 @@ const log = std.log;
 const stdout = std.io.getStdOut();
 const stderr = std.io.getStdErr();
 const color = @import("colors");
+const file_io = @import("file_io");
 const fs = std.fs;
 // const zon = @import("../../../build.zig.zon"); // how get .version tag on `build.zig.zon`?
 
@@ -127,7 +128,7 @@ pub fn main() u8 {
         fs.cwd().access(file, .{ .mode = .read_only }) catch |err| {
             if (!args.verbose) continue;
 
-            color.print(stderr, color.red, "Failed to open", .{});
+            color.print(stderr, color.yellow, "Failed to open", .{});
             color.print(stderr, color.blue, " {s}", .{file});
             const reason = blk: {
                 if (err == error.PermissionDenied) break :blk " (Do you have permission?)";
@@ -135,9 +136,15 @@ pub fn main() u8 {
                 if (err == error.BadPathName) break :blk " (is it a valid path?)";
                 break :blk "!";
             };
-            color.print(stderr, color.red, "{s}\n", .{reason});
+            color.print(stderr, color.yellow, "{s}\n", .{reason});
             continue;
         };
+
+        file_io.move(file, dest, .{
+            .force = args.force,
+            .recursive = args.recursive,
+            .link = args.link,
+        }) catch |err| color.print(stderr, color.red, "Unexpected error! ({})\n", .{err});
     }
     return 0;
 }
