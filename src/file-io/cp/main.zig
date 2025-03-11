@@ -87,19 +87,9 @@ pub fn main() u8 {
         }
     };
 
-    // lets not iterate over files.items if we aren't printing them //
-<<<<<<< HEAD
-    if (is_debug) {
-        log.debug("operands:", .{});
-        for (files.items) |file| {
-            log.debug("\t{s}", .{file});
-        }
-        log.debug("args: {b}", .{args});
-=======
     log.debug("operands:\n", .{});
     for (files.items) |file| {
         log.debug("\t{s}\n", .{file});
->>>>>>> 7711fdb81616503b7bfe3724a291e78f67040436
     }
     log.debug("args: {b}", .{args});
 
