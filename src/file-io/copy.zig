@@ -1,6 +1,6 @@
 const std = @import("std");
 // TODO: copy is a bad name, this will prob be used for mv.zig as well and probably will also have a remove() //
-// I just was loosely following the source code of coreutils, specifcally copy.c and copy.h //
+// I just was loosely following the source code of coreutils, specifically copy.c and copy.h //
 
 pub const OperationSettings = struct {
     force: bool,
