@@ -106,8 +106,24 @@ pub fn main() u8 {
     @memcpy(dest, files.pop().?);
     defer allocator.free(dest);
 
+    // verbose padding //
+    // kinda ugly vars //
+    var verbose_longest_operand: usize = undefined;
+    var verbose_zig_padding_char: []u8 = undefined;
+    var verbose_padding_char: [*c]u8 = undefined;
+    if (args.verbose) {
+        verbose_longest_operand = getLongestOperand(files.items);
+        verbose_zig_padding_char  = allocator.alloc(u8, verbose_longest_operand) catch {
+            color.print(stderr, color.red, "Failed to allocate memory for verbose padding char!\n", .{});
+            return 1;
+        };
+        @memset(verbose_zig_padding_char, '-');
+        verbose_padding_char = @ptrCast(verbose_zig_padding_char);
+    } defer {
+        if (args.verbose) allocator.free(verbose_zig_padding_char);
+    }
+
     var dot_count: u8 = 0;
-    const longest_operand = getLongestOperand(files.items);
     for (files.items) |file_slice| {
         // these *:0 are really fucking annoying so do it the c way of looking for \0 //
         const file: []u8 = allocator.alloc(u8, std.mem.len(file_slice)) catch {
@@ -119,9 +135,9 @@ pub fn main() u8 {
 
         if (args.verbose) {
             if (dot_count < 3) dot_count += 1 else dot_count -= 2;
-            const padding = (longest_operand + 4 - file.len);
+            const padding = (verbose_longest_operand - file.len);
             // printf may as well be its own programming language kek //
-            _ = std.c.printf("copying <%s>%*s to %s%.*s\n", zigStrToC(file), padding, " ", zigStrToC(dest), dot_count, "...");
+            _ = std.c.printf("\"%s\" %.*s--[copying]--> \"%s\"%.*s\n", zigStrToC(file), padding, verbose_padding_char, zigStrToC(dest), dot_count, "...");
         }
 
         // does this file exist? //
