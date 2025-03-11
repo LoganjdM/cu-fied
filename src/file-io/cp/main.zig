@@ -76,10 +76,10 @@ fn zigStrToC(str: []u8) [*c]u8 {
 
 pub fn main() u8 {
     var gpa: std.heap.DebugAllocator(.{}) = .init;
-    const gpa_alloc = gpa.allocator();
     defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
 
-    var files = std.ArrayList([*:0]u8).init(gpa_alloc);
+    var files = std.ArrayList([*:0]u8).init(allocator);
     defer files.deinit();
 
     const args = parseArgs(std.os.argv, &files) catch |err| {
@@ -98,23 +98,23 @@ pub fn main() u8 {
         log.debug("\t{s}\n", .{file});
     }
 
-    const dest: []u8 = gpa_alloc.alloc(u8, files.items.len + 1) catch {
+    const dest: []u8 = allocator.alloc(u8, files.items.len + 1) catch {
         color.print(stderr, color.red, "Failed to allocate memory for destination file argument!\n", .{});
         return 1;
     };
     @memcpy(dest, files.pop().?);
-    defer gpa_alloc.free(dest);
+    defer allocator.free(dest);
 
     var dot_count: u8 = 0;
     const longest_operand = getLongestOperand(files.items);
     for (files.items) |file_slice| {
         // these *:0 are really fucking annoying so do it the c way of looking for \0 //
-        const file: []u8 = gpa_alloc.alloc(u8, std.mem.len(file_slice)) catch {
+        const file: []u8 = allocator.alloc(u8, std.mem.len(file_slice)) catch {
             color.print(stderr, color.red, "Failed to allocate memory for source file argument!\n", .{});
             continue;
         };
         @memcpy(file, file_slice);
-        defer gpa_alloc.free(file);
+        defer allocator.free(file);
 
         if (args.verbose) {
             if (dot_count < 3) dot_count += 1 else dot_count -= 2;
