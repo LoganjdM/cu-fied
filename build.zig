@@ -41,8 +41,12 @@ fn buildC(b: *Build, srcs: anytype, target: Build.ResolvedTarget, optimize: std.
     try addBuildSteps(b, name, &exe_check.step, &run_exe.step, global_check);
 }
 
-var colors_module: *Build.Module = undefined;
-fn buildZig(b: *Build, main: Build.LazyPath, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, global_check: *Build.Step) !void {
+// var colors_module: *Build.Module = undefined;
+// how the fuck do array args? ifgdk i'm tired and just played utakill for like 2 hours so my brain no workey //
+// ehh fuck it, make it anytype and treat it as an array. this is basically like just doing void*, this sucks //
+fn buildZig(b: *Build, main: Build.LazyPath, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, modules: anytype, module_names: anytype, global_check: *Build.Step) !void {
+    if (module_names.len != modules.len) @panic("modules and module_len should have the same len!");
+
     const exe = b.addExecutable(.{
         .name = name,
         .root_module = b.createModule(.{
@@ -53,7 +57,10 @@ fn buildZig(b: *Build, main: Build.LazyPath, target: Build.ResolvedTarget, optim
         }),
     });
 
-    exe.root_module.addImport("colors", colors_module);
+    for (modules, 0..) |module, i| {
+        exe.root_module.addImport(module_names[i], module);
+    }
+    // exe.root_module.addImport("colors", colors_module);
     b.installArtifact(exe);
 
     const exe_check = b.addExecutable(.{
@@ -65,6 +72,9 @@ fn buildZig(b: *Build, main: Build.LazyPath, target: Build.ResolvedTarget, optim
             .link_libc = true,
         }),
     });
+    for (modules, 0..) |module, i| {
+        exe_check.root_module.addImport(module_names[i], module);
+    }
     exe_check.root_module.addIncludePath(b.path("src"));
 
     const run_exe = b.addRunArtifact(exe);
@@ -102,10 +112,6 @@ pub fn build(b: *Build) !void {
     // Global
     const global_check = b.step("check", "Check if all apps compile");
 
-    const colors_h = b.addTranslateC(.{ .root_source_file = b.path("src/colors.h"), .target = target, .optimize = optimize });
-    const colors_h_module = colors_h.createModule();
-    colors_module = b.addModule("colors", .{ .root_source_file = b.path("src/colors.zig"), .target = target, .optimize = optimize, .link_libc = true });
-    colors_module.addImport("colors_h", colors_h_module);
     const fmt_step = b.step("fmt", "Format all zig code");
     const check_fmt_step = b.step("check-fmt", "Check formatting of all zig code");
 
@@ -118,6 +124,22 @@ pub fn build(b: *Build) !void {
 
     // Dependencies
     const clap = b.dependency("clap", .{});
+
+    const colors_h = b.addTranslateC(.{ .root_source_file = b.path("src/colors.h"), .target = target, .optimize = optimize });
+    const colors_h_module = colors_h.createModule();
+    const colors_module = b.addModule("colors", .{
+        .root_source_file = b.path("src/colors.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+    colors_module.addImport("colors_h", colors_h_module);
+
+    const copy_module = b.addModule("copy", .{
+        .root_source_file = b.path("src/file-io/copy.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
 
     // First update versioning's on the C side.. //
     var fp: std.fs.File = try std.fs.cwd().openFile("src/app_info.h", .{ .mode = .write_only });
@@ -169,7 +191,7 @@ pub fn build(b: *Build) !void {
 
     // CPF
     const cpf = b.path("src/file-io/cp/main.zig");
-    try buildZig(b, cpf, target, optimize, "cpf", global_check);
+    try buildZig(b, cpf, target, optimize, "cpf", &[_]*Build.Module{ colors_module, copy_module }, [_][]const u8{ "colors", "copy" }, global_check);
 
     // generate man pages //
     const help2man = b.step("help2man", "Use GNU `help2man` to generate man pages.");

@@ -15,7 +15,7 @@ const params = enum(u16) {
     verbose = 0b10000,
 };
 fn argGiven(args: u16, arg: params) bool {
-	return (args & @intFromEnum(arg)) != 0;
+    return (args & @intFromEnum(arg)) != 0;
 }
 
 fn isArg(arg: [*:0]const u8, comptime short: []const u8, comptime long: []const u8) bool {
@@ -57,10 +57,18 @@ fn parseArgs(argv: [][*:0]u8, files: *std.ArrayListAligned([*:0]u8, null)) error
     return args;
 }
 
-fn zigStrToC(str: []u8) [*c]u8 {
-	return @ptrCast(str);
+fn getLongestOperand(files: [][*:0]u8) usize {
+    var result: usize = 0;
+    for (files) |fname| {
+        const flen = std.mem.len(fname);
+        if (flen > result) result = flen;
+    }
+    return result;
 }
 
+fn zigStrToC(str: []u8) [*c]u8 {
+    return @ptrCast(str);
+}
 pub fn main() u8 {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const gpa_alloc = gpa.allocator();
@@ -95,42 +103,40 @@ pub fn main() u8 {
     };
     @memcpy(dest, files.pop().?);
     defer gpa_alloc.free(dest);
-    
 
-	var dot_count: u8 = 0;
+    var dot_count: u8 = 0;
+    const longest_operand = getLongestOperand(files.items);
     for (files.items) |file_slice| {
-    	// these *:0 are really fucking annoying so fuck it do it the c way of looking for \0 //
-    	const file: []u8 = gpa_alloc.alloc(u8, std.mem.len(file_slice)) catch { 
-	        color.print(stderr, color.red, "Failed to allocate memory for source file argument!\n", .{});
-	        continue;
-    	};
-    	@memcpy(file, file_slice);
-    	defer gpa_alloc.free(file);
+        // these *:0 are really fucking annoying so fuck it do it the c way of looking for \0 //
+        const file: []u8 = gpa_alloc.alloc(u8, std.mem.len(file_slice)) catch {
+            color.print(stderr, color.red, "Failed to allocate memory for source file argument!\n", .{});
+            continue;
+        };
+        @memcpy(file, file_slice);
+        defer gpa_alloc.free(file);
 
-		if(argGiven(args, params.verbose)) {
-			if (dot_count < 3) dot_count += 1 else dot_count -= 2;
-			// printf may as well be its own programming language kek //
-			// also if we have this cool ... thing, we should also probably use %*s fuckery to vertically allign this instead of \t //
-			_ = std.c.printf("copying %s\t to %s%.*s\n", zigStrToC(file), zigStrToC(dest), dot_count, "...");
-		}
+        if (argGiven(args, params.verbose)) {
+            if (dot_count < 3) dot_count += 1 else dot_count -= 2;
+            const padding = (longest_operand + 4 - file.len);
+            // printf may as well be its own programming language kek //
+            _ = std.c.printf("copying <%s>%*s to %s%.*s\n", zigStrToC(file), padding, " ", zigStrToC(dest), dot_count, "...");
+        }
 
-		// does this file exist? //
-	    fs.cwd().access(file, .{ .mode = .read_only }) catch |err| {
-	    	if (!argGiven(args, params.verbose)) continue;
-	    	
-	        color.print(stderr, color.red, "Failed to open", .{});
-	        color.print(stderr, color.blue, " {s}", .{file});
-	        const reason = blk: {
-	            if (err == error.PermissionDenied) break :blk " (Do you have permission?)";
-	            if (err == error.FileNotFound) break :blk " (does it exist?)";
-	            if (err == error.BadPathName) break :blk " (is it a valid path?)";
-	            break :blk "!";
-	        };
-	        color.print(stderr, color.red, "{s}\n", .{reason});
-	        continue;
-	    };
+        // does this file exist? //
+        fs.cwd().access(file, .{ .mode = .read_only }) catch |err| {
+            if (!argGiven(args, params.verbose)) continue;
 
-	    
+            color.print(stderr, color.red, "Failed to open", .{});
+            color.print(stderr, color.blue, " {s}", .{file});
+            const reason = blk: {
+                if (err == error.PermissionDenied) break :blk " (Do you have permission?)";
+                if (err == error.FileNotFound) break :blk " (does it exist?)";
+                if (err == error.BadPathName) break :blk " (is it a valid path?)";
+                break :blk "!";
+            };
+            color.print(stderr, color.red, "{s}\n", .{reason});
+            continue;
+        };
     }
     return 0;
 }
