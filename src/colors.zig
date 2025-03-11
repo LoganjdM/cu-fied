@@ -16,7 +16,7 @@ pub fn escapeCode(fp: std.fs.File, ansi: anytype) [*c]const u8 {
     if (std.c.isatty(fp.handle) == 1) {
         return @ptrCast(ansi);
     }
-    return "";
+    return "\x00";
 }
 
 // based off std.debug.print() source code //
