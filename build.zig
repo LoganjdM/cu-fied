@@ -80,14 +80,12 @@ fn runHelp2man(step: *Build.Step, _: Build.Step.MakeOptions) !void {
 
     for (clis) |cli| {
         const tool_run = b.addSystemCommand(&.{"help2man"});
-        tool_run.addArgs(&.{
-            b.fmt("zig-out/bin/{s}", .{cli}),
-            "-o",
+        _ = tool_run.addOutputFileArg(cli);
+        _ = tool_run.addPrefixedFileArg("-o", b.path(
             b.fmt("docs/{s}.1", .{cli}),
-        });
-        tool_run.addFileArg(b.path(""));
+        ));
 
-        _ = tool_run.captureStdOut();
+        step.dependOn(&tool_run.step);
     }
 }
 
