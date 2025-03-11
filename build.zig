@@ -8,18 +8,22 @@ fn addBuildSteps(b: *Build, name: []const u8, check_exe: *Build.Step, run_exe: *
     defer std.debug.assert(gpa.deinit() == .ok);
     const alloc = gpa.allocator();
 
+    // Generate `check-*` step.
     const check_str = try std.fmt.allocPrint(alloc, "check-{s}", .{name});
-    const check_desc_str = try std.fmt.allocPrint(alloc, "See if {s} compiles", .{name});
     defer alloc.free(check_str);
+
+    const check_desc_str = try std.fmt.allocPrint(alloc, "See if {s} compiles", .{name});
     defer alloc.free(check_desc_str);
 
     const check = b.step(check_str, check_desc_str);
     check.dependOn(check_exe);
     global_check.dependOn(check_exe);
 
+    // Generate `run-*` step.
     const run_str = try std.fmt.allocPrint(alloc, "run-{s}", .{name});
-    const run_desc_str = try std.fmt.allocPrint(alloc, "Run {s}", .{name});
     defer alloc.free(run_str);
+
+    const run_desc_str = try std.fmt.allocPrint(alloc, "Run {s}", .{name});
     defer alloc.free(run_desc_str);
 
     const run = b.step(run_str, run_desc_str);
@@ -27,43 +31,52 @@ fn addBuildSteps(b: *Build, name: []const u8, check_exe: *Build.Step, run_exe: *
 }
 
 fn buildC(b: *Build, srcs: anytype, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, global_check: *Build.Step, cflags: [4][]const u8) !void {
-    const exe = b.addExecutable(.{ .name = name, .root_module = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true }) });
+    const module = b.createModule(.{
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+    module.addCSourceFiles(.{
+        .files = srcs,
+        .flags = &cflags,
+    });
 
-    exe.root_module.addCSourceFiles(.{ .files = srcs, .flags = &cflags });
+    const exe = b.addExecutable(.{
+        .name = name,
+        .root_module = module,
+    });
     b.installArtifact(exe);
 
-    const exe_check = b.addExecutable(.{ .name = name, .root_module = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true }) });
-
-    exe_check.root_module.addCSourceFiles(.{ .files = srcs, .flags = &cflags });
+    const exe_check = b.addExecutable(.{
+        .name = name,
+        .root_module = module,
+    });
 
     const run_exe = b.addRunArtifact(exe);
     if (b.args) |args| run_exe.addArgs(args);
     try addBuildSteps(b, name, &exe_check.step, &run_exe.step, global_check);
 }
 
-var colors_module: *Build.Module = undefined;
-fn buildZig(b: *Build, main: Build.LazyPath, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, global_check: *Build.Step) !void {
+fn buildZig(b: *Build, main: Build.LazyPath, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, global_check: *Build.Step, colors_module: *Build.Module) !void {
+    const module = b.createModule(.{
+        .root_source_file = main,
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+        .imports = &.{
+            .{ .name = "colors", .module = colors_module },
+        },
+    });
     const exe = b.addExecutable(.{
         .name = name,
-        .root_module = b.createModule(.{
-            .root_source_file = main,
-            .target = target,
-            .optimize = optimize,
-            .link_libc = true,
-        }),
+        .root_module = module,
     });
 
-    exe.root_module.addImport("colors", colors_module);
     b.installArtifact(exe);
 
     const exe_check = b.addExecutable(.{
         .name = name,
-        .root_module = b.createModule(.{
-            .root_source_file = main,
-            .target = target,
-            .optimize = optimize,
-            .link_libc = true,
-        }),
+        .root_module = module,
     });
     exe_check.root_module.addIncludePath(b.path("src"));
 
@@ -102,10 +115,6 @@ pub fn build(b: *Build) !void {
     // Global
     const global_check = b.step("check", "Check if all apps compile");
 
-    const colors_h = b.addTranslateC(.{ .root_source_file = b.path("src/colors.h"), .target = target, .optimize = optimize });
-    const colors_h_module = colors_h.createModule();
-    colors_module = b.addModule("colors", .{ .root_source_file = b.path("src/colors.zig"), .target = target, .optimize = optimize, .link_libc = true });
-    colors_module.addImport("colors_h", colors_h_module);
     const fmt_step = b.step("fmt", "Format all zig code");
     const check_fmt_step = b.step("check-fmt", "Check formatting of all zig code");
 
@@ -118,6 +127,23 @@ pub fn build(b: *Build) !void {
 
     // Dependencies
     const clap = b.dependency("clap", .{});
+
+    // Utilities
+    const colors_h = b.addTranslateC(.{
+        .root_source_file = b.path("src/colors.h"),
+        .target = target,
+        .optimize = optimize,
+    });
+    const colors_h_module = colors_h.createModule();
+    const colors_module = b.addModule("colors", .{
+        .root_source_file = b.path("src/colors.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+        .imports = &.{
+            .{ .name = "colors_h", .module = colors_h_module },
+        },
+    });
 
     // First update versioning's on the C side.. //
     var fp: std.fs.File = try std.fs.cwd().openFile("src/app_info.h", .{ .mode = .write_only });
@@ -169,7 +195,7 @@ pub fn build(b: *Build) !void {
 
     // CPF
     const cpf = b.path("src/file-io/cp/main.zig");
-    try buildZig(b, cpf, target, optimize, "cpf", global_check);
+    try buildZig(b, cpf, target, optimize, "cpf", global_check, colors_module);
 
     // generate man pages //
     const help2man = b.step("help2man", "Use GNU `help2man` to generate man pages.");
