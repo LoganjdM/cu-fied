@@ -20,7 +20,7 @@ pub const OperationError = error{
     IsDir,
 };
 
-// FIXME: we use linux syscall... however macos has an equivelant and zig has an abstracted generic, but zig was doing some weird stuff with its abstracted std.posix version when I checked `strace` //
+// FIXME: we use linux syscall... however macos has an equivalent and zig has an abstracted generic, but zig was doing some weird stuff with its abstracted std.posix version when I checked `strace` //
 pub fn copy(src: []const u8, dest: []const u8, flags: OperationSettings) OperationError!void {
     _ = flags; // TODO
 
@@ -35,7 +35,7 @@ pub fn copy(src: []const u8, dest: []const u8, flags: OperationSettings) Operati
     };
 
     // prepare to see alot of error.Unexpected. //
-    // we already did error checking, and all of this should happen so fast that these next things  shouldnt faill //
+    // we already did error checking, and all of this should happen so fast that these next things  shouldnt fail //
     // but I dont want to risk `catch unreachable` because something *could* happen within these few microseconds //
     posix.lseek_END(src_fd, 0) catch return error.Unexpected;
     const src_len = posix.lseek_CUR_get(src_fd) catch return error.Unexpected;
