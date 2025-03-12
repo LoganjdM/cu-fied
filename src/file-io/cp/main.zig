@@ -8,19 +8,11 @@ const fs = std.fs;
 // const zon = @import("../../../build.zig.zon"); // how get .version tag on `build.zig.zon`?
 
 const Params = packed struct {
-    recursive: bool,
-    force: bool,
-    link: bool,
-    interactive: bool,
-    verbose: bool,
-
-    pub const init: Params = .{
-        .recursive = false,
-        .force = false,
-        .link = false,
-        .interactive = false,
-        .verbose = false,
-    };
+    recursive: bool = false,
+    force: bool = false,
+    link: bool = false,
+    interactive: bool = false,
+    verbose: bool = false,
 };
 
 fn isArg(arg: [*:0]const u8, comptime short: []const u8, comptime long: []const u8) bool {
@@ -28,7 +20,7 @@ fn isArg(arg: [*:0]const u8, comptime short: []const u8, comptime long: []const 
 }
 
 fn parseArgs(argv: [][*:0]u8, files: *std.ArrayListAligned([*:0]u8, null)) error{ OutOfMemory, InvalidArgument }!Params {
-    var args: Params = .init;
+    var args: Params = .{};
 
     for (argv, 0..) |arg, i| {
         if (i == 0) continue; // skip exec
@@ -113,13 +105,14 @@ pub fn main() u8 {
     var verbose_padding_char: [*c]u8 = undefined;
     if (args.verbose) {
         verbose_longest_operand = getLongestOperand(files.items);
-        verbose_zig_padding_char  = allocator.alloc(u8, verbose_longest_operand) catch {
+        verbose_zig_padding_char = allocator.alloc(u8, verbose_longest_operand) catch {
             color.print(stderr, color.red, "Failed to allocate memory for verbose padding char!\n", .{});
             return 1;
         };
         @memset(verbose_zig_padding_char, '-');
         verbose_padding_char = @ptrCast(verbose_zig_padding_char);
-    } defer {
+    }
+    defer {
         if (args.verbose) allocator.free(verbose_zig_padding_char);
     }
 
@@ -156,7 +149,7 @@ pub fn main() u8 {
             continue;
         };
 
-        file_io.move(file, dest, .{
+        file_io.copy(file, dest, .{
             .force = args.force,
             .recursive = args.recursive,
             .link = args.link,
