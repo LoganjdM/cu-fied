@@ -156,6 +156,7 @@ pub fn build(b: *Build) !void {
         .link_libc = true,
         .imports = &.{
             .{ .name = "clap", .module = clap.module("clap") },
+            .{ .name = "file_io", .module = file_io_module },
         },
     });
 
