@@ -1,4 +1,5 @@
 const std = @import("std");
+const target = @import("builtin").target;
 const posix = std.posix;
 // const os = std.os;
 const fs = std.fs;
@@ -57,14 +58,22 @@ pub fn copy(src: []const u8, dest: []const u8, flags: OperationSettings) Operati
     };
 
     // sendfile works differently on macos and freebsd! //
-    // header and trailer args are not needed on linux, and flags arg differs per OS, but 0 is fine as linux doesn't have this argument, and macos returns EINVAL if not given 0 //
-    // mac: https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/sendfile.2.html
-    // linux: https://www.man7.org/linux/man-pages/man2/sendfile.2.html
-    // FIXME: HERE //
-    const bytes_written = std.os.linux.sendfile(dest_fd, src_fd, null, src_len);
-    // FIXME: the standard linux way checking for error here is seeing if we returned -1... //
-    // but zig returns usize..? //
-    _ = bytes_written;
+    if (target.os.tag == .linux) {
+	    // linux: https://www.man7.org/linux/man-pages/man2/sendfile.2.html
+   		const bytes_written = std.os.linux.sendfile(dest_fd, src_fd, null, src_len);
+	    // FIXME: the standard linux way checking for error here is seeing if we returned -1... //
+	    // but zig returns usize..? //
+	    _ = bytes_written;
+    } else {
+	    // mac: https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/sendfile.2.html
+	    // zig follows the BSD approach and if in_len is 0, it copies the most data it can //
+    	posix.sendfile(dest_fd, src_fd, 0, 0, [_]posix.iovec_const{}, [_]posix.iovec_const{}, 0) catch |err| return switch(err) {
+    		error.AccessDenied => error.AccessDenied,
+	        error.SystemResources => error.SystemResources,
+	        error.DeviceBusy => error.SystemResources,
+	        else => return error.Unexpected,
+    	};
+    }
 }
 
 pub fn remove(path: []const u8, flags: OperationSettings) OperationError!void {
