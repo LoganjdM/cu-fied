@@ -91,8 +91,7 @@ pub fn main() u8 {
         log.debug("\t{s}\n", .{file});
     }
 
-	const files_pop = files.pop().?;
-    const dest: []u8 = allocator.dupe(u8, std.mem.span(files_pop)) catch {
+    const dest: []u8 = allocator.dupe(u8, std.mem.span(files.pop().?)) catch {
         color.print(stderr, color.red, "Failed to allocate memory for destination file argument!\n", .{});
         return 1;
     };
