@@ -18,13 +18,14 @@ fn zigStrToC(str: []const u8) [*c]u8 {
     return @ptrCast(@constCast(str));
 }
 fn getLongestOperand(files: []const []const u8) usize {
-	var result: usize = 0;
-	for (files) |fname| {
-		if(fname.len > result) result = fname.len;
-	} return result;
+    var result: usize = 0;
+    for (files) |fname| {
+        if (fname.len > result) result = fname.len;
+    }
+    return result;
 }
 
-fn move(allocator: Allocator, sources: []const []const u8, destination: []const u8) error{OutOfMemory, OperationError}!void {
+fn move(allocator: Allocator, sources: []const []const u8, destination: []const u8) error{ OutOfMemory, OperationError }!void {
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const aAllocator = arena.allocator();
@@ -32,22 +33,22 @@ fn move(allocator: Allocator, sources: []const []const u8, destination: []const 
     // Create null-terminated string.
     const dest = try aAllocator.dupeZ(u8, destination);
 
-	const verbose_longest_operand = getLongestOperand(sources);
-	var dot_count: u8 = 0;
-	const verbose_zig_padding_char = try aAllocator.alloc(u8, verbose_longest_operand);
-	@memset(verbose_zig_padding_char, '-');
+    const verbose_longest_operand = getLongestOperand(sources);
+    var dot_count: u8 = 0;
+    const verbose_zig_padding_char = try aAllocator.alloc(u8, verbose_longest_operand);
+    @memset(verbose_zig_padding_char, '-');
     const verbose_padding_char: [*c]u8 = @ptrCast(verbose_zig_padding_char);
-    
+
     for (sources) |source| {
         // Create more null-terminated strings.
         const src = try aAllocator.dupeZ(u8, source);
         // TODO: this should follow the coreutils way of doing things and only log this on -v //
-		if (dot_count < 3) dot_count += 1 else dot_count -= 2;
-		const padding = verbose_longest_operand - src.len;
-		// TODO: this probably should be abstracted into file-io.zig to reduce code duplication //
-		// printf may as well be its own programming language kek //
+        if (dot_count < 3) dot_count += 1 else dot_count -= 2;
+        const padding = verbose_longest_operand - src.len;
+        // TODO: this probably should be abstracted into file-io.zig to reduce code duplication //
+        // printf may as well be its own programming language kek //
         _ = std.c.printf("\"%s\" %.*s--[moving]--> \"%s\"%.*s\n", zigStrToC(src), padding, verbose_padding_char, zigStrToC(dest), dot_count, "...");
-        file_io.copy(source, dest, .{ .force = false, .recursive = false, .link = false}) catch return error.OperationError;
+        file_io.copy(source, dest, .{ .force = false, .recursive = false, .link = false }) catch return error.OperationError;
         // TODO: remove source //
     }
 }
