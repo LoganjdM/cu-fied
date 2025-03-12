@@ -34,15 +34,7 @@ pub fn copy(src: []const u8, dest: []const u8, flags: OperationSettings) Operati
         else => return error.Unexpected,
     };
 
-    // prepare to see alot of error.Unexpected. //
     // we already did error checking, and all of this should happen so fast that these next things  shouldnt fail //
-    // but I dont want to risk `catch unreachable` because something *could* happen within these few microseconds //
-    posix.lseek_END(src_fd, 0) catch return error.Unexpected;
-    const src_len = posix.lseek_CUR_get(src_fd) catch return error.Unexpected;
-    posix.lseek_SET(src_fd, 0) catch return error.Unexpected;
-
-    // posix.stat... auctualy the types in std.posix in zig in general are a bit of a "what?" //
-    // it boils down to this though if you don't wanna go down the rabbit hole of "if (os), if (arch)" //
     // https://ziglang.org/documentation/master/std/#std.c.Stat //
     const src_mode = (posix.fstat(src_fd) catch return error.Unexpected).mode;
 
@@ -57,22 +49,15 @@ pub fn copy(src: []const u8, dest: []const u8, flags: OperationSettings) Operati
     };
 
     // sendfile works differently on macos and freebsd! //
-    if (target.os.tag == .linux) {
-        // linux: https://www.man7.org/linux/man-pages/man2/sendfile.2.html
-        const bytes_written = std.os.linux.sendfile(dest_fd, src_fd, null, src_len);
-        // FIXME: the standard linux way checking for error here is seeing if we returned -1... //
-        // but zig returns usize..? //
-        _ = bytes_written;
-    } else {
-        // mac: https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/sendfile.2.html
-        // zig follows the BSD approach and if in_len is 0, it copies the most data it can //
-        _ = posix.sendfile(dest_fd, src_fd, 0, 0, &[_]posix.iovec_const{}, &[_]posix.iovec_const{}, 0) catch |err| return switch (err) {
-            error.AccessDenied => error.AccessDenied,
-            error.SystemResources => error.SystemResources,
-            error.DeviceBusy => error.SystemResources,
-            else => return error.Unexpected,
-        };
-    }
+    // zig follows the BSD approach and if in_len is 0, it copies the most data it can //
+    // linux: https://www.man7.org/linux/man-pages/man2/sendfile.2.html
+    // mac: https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/sendfile.2.html
+    _ = posix.sendfile(dest_fd, src_fd, 0, 0, &[_]posix.iovec_const{}, &[_]posix.iovec_const{}, 0) catch |err| return switch (err) {
+        error.AccessDenied => error.AccessDenied,
+        error.SystemResources => error.SystemResources,
+        error.DeviceBusy => error.SystemResources,
+        else => return error.Unexpected,
+    };
 }
 
 pub fn remove(path: []const u8, flags: OperationSettings) OperationError!void {
