@@ -71,22 +71,6 @@ fn buildZig(b: *Build, main: Build.LazyPath, target: Build.ResolvedTarget, optim
     addBuildSteps(b, name, &exe_check.step, &run_exe.step, global_check);
 }
 
-fn runHelp2man(step: *Build.Step, _: Build.Step.MakeOptions) !void {
-    const b = step.owner;
-
-    const clis = [_][]const u8{ "lsf", "mvf", "touchf" };
-
-    for (clis) |cli| {
-        const tool_run = b.addSystemCommand(&.{"help2man"});
-        _ = tool_run.addOutputFileArg(cli);
-        _ = tool_run.addPrefixedFileArg("-o", b.path(
-            b.fmt("docs/{s}.1", .{cli}),
-        ));
-
-        step.dependOn(&tool_run.step);
-    }
-}
-
 pub fn build(b: *Build) !void {
     const cflags = [_][]const u8{
         "-std=c23",
@@ -201,5 +185,17 @@ pub fn build(b: *Build) !void {
 
     // generate man pages //
     const help2man = b.step("help2man", "Use GNU `help2man` to generate man pages.");
-    help2man.makeFn = runHelp2man;
+
+    const clis = [_][]const u8{ "lsf", "touchf" };
+
+    for (clis) |cli| {
+        const tool_run = b.addSystemCommand(&.{"help2man"});
+
+        tool_run.addArgs(&.{
+            b.fmt("zig-out/bin/{s}", .{cli}),
+            "-o",
+            b.fmt("docs/{s}.1", .{cli}),
+        });
+        help2man.dependOn(&tool_run.step);
+    }
 }
