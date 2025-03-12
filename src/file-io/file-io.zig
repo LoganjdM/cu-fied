@@ -46,7 +46,7 @@ pub fn copy(src: []const u8, dest: []const u8, flags: OperationSettings) Operati
     // https://ziglang.org/documentation/master/std/#std.c.Stat //
     const src_mode = (posix.fstat(src_fd) catch return error.Unexpected).mode;
 
-    const dest_fd = posix.open(dest, .{ .CREAT = true }, src_mode) catch |err| return switch (err) {
+    const dest_fd = posix.open(dest, .{ .ACCMODE = .RDWR, .CREAT = true }, src_mode) catch |err| return switch (err) {
         error.AccessDenied => error.AccessDenied,
         error.BadPathName => error.BadPathName,
         error.SystemResources => error.SystemResources,
