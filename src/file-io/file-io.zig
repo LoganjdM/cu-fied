@@ -66,7 +66,7 @@ pub fn copy(src: []const u8, dest: []const u8, flags: OperationSettings) Operati
     } else {
         // mac: https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/sendfile.2.html
         // zig follows the BSD approach and if in_len is 0, it copies the most data it can //
-        posix.sendfile(dest_fd, src_fd, 0, 0, [_]posix.iovec_const{}, [_]posix.iovec_const{}, 0) catch |err| return switch (err) {
+        _ = posix.sendfile(dest_fd, src_fd, 0, 0, &[_]posix.iovec_const{}, &[_]posix.iovec_const{}, 0) catch |err| return switch (err) {
             error.AccessDenied => error.AccessDenied,
             error.SystemResources => error.SystemResources,
             error.DeviceBusy => error.SystemResources,
