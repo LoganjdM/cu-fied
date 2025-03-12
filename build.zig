@@ -145,36 +145,8 @@ pub fn build(b: *Build) !void {
     buildC(b, &touchf_src_files, target, optimize, "touchf", global_check, cflags);
 
     // MVF
-    const mvf_main = b.path("src/file-io/mv/main.zig");
-    const mvf_module = b.createModule(.{
-        .root_source_file = mvf_main,
-        .target = target,
-        .optimize = optimize,
-        .link_libc = true,
-        .imports = &.{
-            .{ .name = "file_io", .module = file_io_module },
-        },
-    });
-
-    const mvf_exe = b.addExecutable(.{
-        .name = "mvf",
-        .root_module = mvf_module,
-    });
-    b.installArtifact(mvf_exe);
-
-    const mvf_exe_check = b.addExecutable(.{
-        .name = "mvf",
-        .root_module = mvf_module,
-    });
-
-    const mvf_check = b.step("check-mvf", "Check if MVF compiles");
-    mvf_check.dependOn(&mvf_exe_check.step);
-    global_check.dependOn(&mvf_exe_check.step);
-
-    const run_mvf_exe = b.addRunArtifact(mvf_exe);
-    if (b.args) |args| run_mvf_exe.addArgs(args);
-    const run_mvf = b.step("run-mvf", "Run MVF");
-    run_mvf.dependOn(&run_mvf_exe.step);
+    const mvf = b.path("src/file-io/mv/main.zig");
+    buildZig(b, mvf, target, optimize, "mvf", global_check, imports);
 
     // CPF
     const cpf = b.path("src/file-io/cp/main.zig");
