@@ -1,17 +1,15 @@
 const std = @import("std");
 const mem = std.mem;
 const Allocator = mem.Allocator;
-const clap = @import("clap"); // this is fine for now But i want to eventually get rid of this //
 const file_io = @import("file_io");
+const assert = std.debug.assert;
+const ArgIterator = std.process.ArgIterator;
 
-const params = clap.parseParamsComptime(
-    \\-h, --help             Display this help and exit.
-    \\<FILE>...
-    \\<FILE>
-);
-
-const parsers = .{
-    .FILE = clap.parsers.string,
+const Params = struct {
+    help: bool = false,
+    version: bool = false,
+    sources: ?[]const [:0]const u8 = null,
+    destination: ?[:0]const u8 = null,
 };
 
 fn zigStrToC(str: []const u8) [*c]u8 {
@@ -23,6 +21,37 @@ fn getLongestOperand(files: []const []const u8) usize {
         if (fname.len > result) result = fname.len;
     }
     return result;
+}
+
+fn parseArgs(args: *ArgIterator, allocator: Allocator) error{ OutOfMemory, BadArgs }!Params {
+    var positionals = std.ArrayListUnmanaged([:0]const u8){};
+
+    while (args.next()) |arg| {
+        if (std.mem.eql(u8, arg, "--help")) {
+            return Params{ .help = true };
+        } else if (std.mem.eql(u8, arg, "-h")) {
+            return Params{ .help = true };
+        } else if (std.mem.eql(u8, arg, "--version")) {
+            return Params{ .version = true };
+        } else if (arg[0] == '-') {
+            std.log.warn("Unknown option: {?s}", .{arg});
+        } else {
+            const pos = try positionals.addOne(allocator);
+            pos.* = arg;
+        }
+    }
+
+    if (positionals.items.len < 2) {
+        return error.BadArgs;
+    }
+
+    const sources = positionals.items[0 .. positionals.items.len - 1];
+    const destination = positionals.items[positionals.items.len - 1];
+
+    return Params{
+        .sources = sources,
+        .destination = destination,
+    };
 }
 
 fn move(allocator: Allocator, sources: []const []const u8, destination: []const u8) error{ OutOfMemory, OperationError }!void {
@@ -58,26 +87,44 @@ pub fn main() !u8 {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    var diag = clap.Diagnostic{};
-    var res = clap.parse(clap.Help, &params, parsers, .{
-        .diagnostic = &diag,
-        .allocator = allocator,
-    }) catch |err| {
-        try diag.report(std.io.getStdErr().writer(), err);
-        return 1;
-    };
-    defer res.deinit();
+    var args_iter = try std.process.ArgIterator.initWithAllocator(allocator);
+    defer args_iter.deinit();
 
-    if (res.args.help != 0) {
-        try clap.help(std.io.getStdErr().writer(), clap.Help, &params, .{});
+    _ = args_iter.next();
+    const args = try parseArgs(&args_iter, allocator);
+
+    if (args.help) {
+        try std.io.getStdOut().writer().print(
+            \\Name: mvf - move files fancily
+            \\
+            \\Usage:
+            \\  mvf [OPTION]... SOURCE TARGET
+            \\  mvf [OPTION]... SOURCE... DIRECTORY
+            \\
+            \\Options:
+            \\
+            \\  -h, --help  display this help message and exit
+            \\
+            \\  --version   display CU-Fied version and exit
+            \\
+        , .{});
 
         return 0;
     }
 
-    const sources = res.positionals[0];
-    const destination = res.positionals[1] orelse return error.NoDestination;
+    if (args.version) {
+        try std.io.getStdOut().writer().print(
+            \\mvf version {s}
+            \\
+        , .{"0.0.0"});
 
-    try move(allocator, sources, destination);
+        return 0;
+    }
+
+    assert(args.sources != null);
+    assert(args.destination != null);
+
+    try move(allocator, args.sources.?, args.destination.?);
 
     return 0;
 }

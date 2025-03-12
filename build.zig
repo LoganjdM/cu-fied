@@ -99,9 +99,6 @@ pub fn build(b: *Build) !void {
     const check_fmt = b.addFmt(.{ .paths = &fmt_paths, .check = true });
     check_fmt_step.dependOn(&check_fmt.step);
 
-    // Dependencies
-    const clap = b.dependency("clap", .{});
-
     // Utilities
     const colors_h = b.addTranslateC(.{
         .root_source_file = b.path("src/colors.h"),
@@ -155,7 +152,6 @@ pub fn build(b: *Build) !void {
         .optimize = optimize,
         .link_libc = true,
         .imports = &.{
-            .{ .name = "clap", .module = clap.module("clap") },
             .{ .name = "file_io", .module = file_io_module },
         },
     });
@@ -187,7 +183,7 @@ pub fn build(b: *Build) !void {
     // generate man pages //
     const help2man = b.step("help2man", "Use GNU `help2man` to generate man pages.");
 
-    const clis = [_][]const u8{ "lsf", "touchf" };
+    const clis = [_][]const u8{ "lsf", "mvf", "touchf" };
 
     for (clis) |cli| {
         const tool_run = b.addSystemCommand(&.{"help2man"});
