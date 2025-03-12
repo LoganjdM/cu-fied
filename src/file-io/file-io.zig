@@ -21,7 +21,6 @@ pub const OperationError = error{
     IsDir,
 };
 
-// FIXME: we use linux syscall... however macos has an equivalent and zig has an abstracted generic, but zig was doing some weird stuff with its abstracted std.posix version when I checked `strace` //
 pub fn copy(src: []const u8, dest: []const u8, flags: OperationSettings) OperationError!void {
     _ = flags; // TODO
 
