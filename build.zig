@@ -1,6 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const Build = std.Build;
+const Compile = Build.Step.Compile;
 
 fn addBuildSteps(b: *Build, name: []const u8, check_exe: *Build.Step, run_exe: *Build.Step, global_check: *Build.Step) void {
     // Generate `check-*` step.
@@ -19,7 +20,7 @@ fn addBuildSteps(b: *Build, name: []const u8, check_exe: *Build.Step, run_exe: *
     run.dependOn(run_exe);
 }
 
-fn buildC(b: *Build, srcs: anytype, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, global_check: *Build.Step, cflags: [5][]const u8) void {
+fn buildC(b: *Build, srcs: anytype, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, global_check: *Build.Step, cflags: [5][]const u8) *Compile {
     const module = b.createModule(.{
         .target = target,
         .optimize = optimize,
@@ -44,9 +45,11 @@ fn buildC(b: *Build, srcs: anytype, target: Build.ResolvedTarget, optimize: std.
     const run_exe = b.addRunArtifact(exe);
     if (b.args) |args| run_exe.addArgs(args);
     addBuildSteps(b, name, &exe_check.step, &run_exe.step, global_check);
+
+    return exe;
 }
 
-fn buildZig(b: *Build, main: Build.LazyPath, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, global_check: *Build.Step, imports: []const Build.Module.Import) void {
+fn buildZig(b: *Build, main: Build.LazyPath, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, global_check: *Build.Step, imports: []const Build.Module.Import) *Compile {
     const module = b.createModule(.{
         .root_source_file = main,
         .target = target,
@@ -69,6 +72,8 @@ fn buildZig(b: *Build, main: Build.LazyPath, target: Build.ResolvedTarget, optim
     const run_exe = b.addRunArtifact(exe);
     if (b.args) |args| run_exe.addArgs(args);
     addBuildSteps(b, name, &exe_check.step, &run_exe.step, global_check);
+
+    return exe;
 }
 
 pub fn build(b: *Build) !void {
@@ -138,33 +143,33 @@ pub fn build(b: *Build) !void {
 
     // LSF
     const lsf_src_files = [_][]const u8{ "src/ls/main.c", "src/ctypes/strbuild.c", "src/ctypes/table.c" };
-    buildC(b, &lsf_src_files, target, optimize, "lsf", global_check, cflags);
+    const lsf = buildC(b, &lsf_src_files, target, optimize, "lsf", global_check, cflags);
 
     // TOUCHF
     const touchf_src_files = [_][]const u8{ "src/touch/main.c", "src/ctypes/table.c" };
-    buildC(b, &touchf_src_files, target, optimize, "touchf", global_check, cflags);
+    const touchf = buildC(b, &touchf_src_files, target, optimize, "touchf", global_check, cflags);
 
     // MVF
-    const mvf = b.path("src/file-io/mv/main.zig");
-    buildZig(b, mvf, target, optimize, "mvf", global_check, imports);
+    const mvf_main = b.path("src/file-io/mv/main.zig");
+    const mvf = buildZig(b, mvf_main, target, optimize, "mvf", global_check, imports);
 
     // CPF
-    const cpf = b.path("src/file-io/cp/main.zig");
-    buildZig(b, cpf, target, optimize, "cpf", global_check, imports);
+    const cpf_main = b.path("src/file-io/cp/main.zig");
+    _ = buildZig(b, cpf_main, target, optimize, "cpf", global_check, imports);
 
     // generate man pages //
     const help2man = b.step("help2man", "Use GNU `help2man` to generate man pages.");
 
-    const clis = [_][]const u8{ "lsf", "mvf", "touchf" };
+    const clis = [_]*Compile{ lsf, mvf, touchf };
 
     for (clis) |cli| {
         const tool_run = b.addSystemCommand(&.{"help2man"});
+        tool_run.addArtifactArg(cli);
 
-        tool_run.addArgs(&.{
-            b.fmt("zig-out/bin/{s}", .{cli}),
-            "-o",
-            b.fmt("docs/{s}.1", .{cli}),
-        });
-        help2man.dependOn(&tool_run.step);
+        const manpage = b.fmt("{s}.1", .{cli.name});
+        const output = tool_run.addPrefixedOutputFileArg("-o", manpage);
+
+        const installMan = b.addInstallFile(output, b.fmt("man/{s}", .{manpage}));
+        help2man.dependOn(&installMan.step);
     }
 }

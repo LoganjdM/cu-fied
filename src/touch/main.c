@@ -20,8 +20,8 @@ bool init_table(void) {
 	file_types = ht_create(25);
 	if(!file_types) return false;
 
-	file_types->put(file_types, "c", c_example);	
-	file_types->put(file_types, "cpp", cpp_example);	
+	file_types->put(file_types, "c", c_example);
+	file_types->put(file_types, "cpp", cpp_example);
 	file_types->put(file_types, "lua", lua_example);
 	file_types->put(file_types, "tl", teal_example);
 	file_types->put(file_types, "py", python_example);
@@ -29,7 +29,7 @@ bool init_table(void) {
 	file_types->put(file_types, "zig", zig_example);
 	file_types->put(file_types, "txt", txt_example);
 	file_types->put(file_types, "md", markdown_example);
-	
+
 	return true;
 }
 
@@ -41,7 +41,7 @@ bool parse_args(const char* arg) {
 			const char help_message[] = "\0";
 			#else
 			const char help_message [] = {
-				#embed "../../docs/touchhelp.txt"	
+				#embed "help.txt"
 				, '\0'
 			};
 			#endif
@@ -77,25 +77,25 @@ int main(int argc, char** argv) {
 			struct stat st = {0};
 			if(stat(argv[i], &st)==0) continue; // stat succeeded, file exists
 		}
-	
+
 		FILE* fp = fopen(argv[i], "w");
 		if(!fp) {
 			printf_escape_code(stderr, RED, "Failed to fill file %s! (%s)", argv[i], strerror(errno));
 			printf_escape_code(stderr, RESET, "\n");
 			continue;
 		}
-		
+
 		char* tok = strtok(argv[i], "."); char* file_extension = NULL;
 		while(tok) {
 			file_extension = tok;
 			tok = strtok(NULL, ".");
 		}
-		
+
 		char* fileconts = NULL;
 		if((fileconts = file_types->get(file_types, file_extension).s)) {
 			fputs(fileconts, fp);
 		}
-		
+
 		fclose(fp);
 	} ht_free(file_types);
 	return 0;

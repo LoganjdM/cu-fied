@@ -166,7 +166,7 @@ uint16_t parse_arguments(const int argc, char** argv) {
 		} else if(ISARG(argv[i], "-h", "--help")) {
 			#ifdef __has_embed
 			const char help[] = {
-			#	embed "../../docs/lshelp.txt"
+			#embed "help.txt"
 				, '\0'};
 			#else
 			const char help[] = "lsf was not compiled with a modern C compiler like Clang 9 or GCC15, and could not make use of `#embed` which is required for the help message!\n";
@@ -192,7 +192,7 @@ uint16_t parse_arguments(const int argc, char** argv) {
 					args |= (val << 4);
 				} continue;
 			}
-			
+
 			printf_escape_code(stderr, YELLOW,  "\"%s\" is not a valid argument!\n", argv[i]); print_escape_code(stderr, RESET);
 			exit(1);
 		}
@@ -244,10 +244,10 @@ char simplified_fsize(uint32_t fsize, float* readable_fsize) {
 }
 
 const char* fdescriptor_color(struct file finfo) {
-	
+
 	if(finfo.stat & S_IFDIR) return escape_code(stdout, BLUE);
 	if(finfo.stat & S_IXUSR) return escape_code(stdout, GREEN);
-	
+
 	char* is_media = NULL;
 	char* tok = strtok(finfo.name, "."); char* extension = NULL;
 	while(tok) {
@@ -261,7 +261,7 @@ const char* fdescriptor_color(struct file finfo) {
 	if(!strcmp(is_media, "󰜡 ")) return escape_code(stdout, YELLOW);
 	if(!strcmp(is_media, "󰈫 ")) return escape_code(stdout, YELLOW);
 	if(!strcmp(is_media, "󰈫 ")) return escape_code(stdout, YELLOW);
-	
+
 	if(finfo.stat & S_IFREG) return "\0";
 	else return escape_code(stdout, CYAN); // must be symlink //
 }
@@ -302,7 +302,7 @@ void list_files(const struct file* files, const uint16_t longest_fdescriptor, co
 		printf_escape_code(stderr, RED, "Failed to allocate memory for file icon and color hashmapping\n"); print_escape_code(stderr, RESET);
 		return;
 	}
-	
+
 	for(uint16_t i=0;i<fcount;++i) {
 		if(condition(files[i].stat)) {
 			continue;
@@ -443,12 +443,12 @@ int main(int argc, char** argv) {
 
 		struct stat st;
 		if(stat(argv[i], &st)==-1) {
-			printf_escape_code(stderr, YELLOW,  "Could not access "); 
+			printf_escape_code(stderr, YELLOW,  "Could not access ");
 			printf_escape_code(stderr, BLUE, "%s!", argv[i]);
 			printf_escape_code(stderr, YELLOW, " (does it exist?)\n"); print_escape_code(stderr, RESET);
 			continue;
 		} else if(!S_ISDIR(st.st_mode)) {
-			printf_escape_code(stderr, YELLOW, "Could not access "); 
+			printf_escape_code(stderr, YELLOW, "Could not access ");
 			printf_escape_code(stderr, BLUE, "%s!", argv[i]);
 			printf_escape_code(stderr, YELLOW, " (is a file!)\n"); print_escape_code(stderr, RESET);
 			continue;

@@ -94,20 +94,7 @@ pub fn main() !u8 {
     const args = try parseArgs(&args_iter, allocator);
 
     if (args.help) {
-        try std.io.getStdOut().writer().print(
-            \\Name: mvf - move files fancily
-            \\
-            \\Usage:
-            \\  mvf [OPTION]... SOURCE TARGET
-            \\  mvf [OPTION]... SOURCE... DIRECTORY
-            \\
-            \\Options:
-            \\
-            \\  -h, --help  display this help message and exit
-            \\
-            \\  --version   display CU-Fied version and exit
-            \\
-        , .{});
+        try std.io.getStdOut().writer().print(@embedFile("help.txt"), .{});
 
         return 0;
     }
