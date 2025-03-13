@@ -36,6 +36,9 @@ fn parseArgs(args: *ArgIterator, allocator: Allocator) error{ OutOfMemory, BadAr
         } else if (arg[0] == '-') {
             std.log.warn("Unknown option: {?s}", .{arg});
         } else {
+            // FIXME: you handle this incorrectly and leak memory //
+            // i'd fix it but I spent god knows how long fucking with coerccing zig types and was going insane //
+            // maybe do arena allocator then memcpy on sources and dest? //
             const pos = try positionals.addOne(allocator);
             pos.* = arg;
         }
@@ -78,7 +81,7 @@ fn move(allocator: Allocator, sources: []const []const u8, destination: []const 
         // printf may as well be its own programming language kek //
         _ = std.c.printf("\"%s\" %.*s--[moving]--> \"%s\"%.*s\n", zigStrToC(src), padding, verbose_padding_char, zigStrToC(dest), dot_count, "...");
         file_io.copy(source, dest, .{ .force = false, .recursive = false, .link = false }) catch return error.OperationError;
-        // TODO: remove source //
+        std.posix.unlink(source) catch return error.OperationError;
     }
 }
 

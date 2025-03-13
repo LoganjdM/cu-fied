@@ -59,22 +59,3 @@ pub fn copy(src: []const u8, dest: []const u8, flags: OperationSettings) Operati
         else => return error.Unexpected,
     };
 }
-
-pub fn remove(path: []const u8, flags: OperationSettings) OperationError!void {
-    _ = flags; // TODO
-    fs.cwd().deleteFile(path, .{}) catch |err| return switch (err) {
-        error.AccessDenied => error.AccessDenied,
-        error.BadPathName => error.BadPathName,
-        error.SystemResources => error.SystemResources,
-        error.FileNotFound => error.FileNotFound,
-        error.FileBusy => error.FileBusy,
-        error.IsDir => error.IsDir,
-
-        else => return error.Unexpected,
-    };
-}
-
-pub fn move(src: []const u8, dest: []const u8, flags: OperationSettings) OperationError!void {
-    try copy(src, dest, flags);
-    try remove(src, flags);
-}
