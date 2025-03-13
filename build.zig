@@ -20,7 +20,7 @@ fn addBuildSteps(b: *Build, name: []const u8, check_exe: *Build.Step, run_exe: *
     run.dependOn(run_exe);
 }
 
-fn buildC(b: *Build, srcs: anytype, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, global_check: *Build.Step, cflags: [5][]const u8) *Compile {
+fn buildC(b: *Build, srcs: anytype, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, global_check: *Build.Step, cflags: []const []const u8) *Compile {
     const module = b.createModule(.{
         .target = target,
         .optimize = optimize,
@@ -28,7 +28,7 @@ fn buildC(b: *Build, srcs: anytype, target: Build.ResolvedTarget, optimize: std.
     });
     module.addCSourceFiles(.{
         .files = srcs,
-        .flags = &cflags,
+        .flags = cflags,
     });
 
     const exe = b.addExecutable(.{
@@ -81,7 +81,9 @@ pub fn build(b: *Build) !void {
         "-std=c23",
         if (b.release_mode == .off) "-g" else "",
         if (b.release_mode == .safe) "-fstack-protector-all" else "",
-        "-D_DEFAULT_SOURCE",
+        if (b.release_mode == .safe) "-O" else "",
+        "-D_GNU_SOURCE",
+        "-Isrc/ctypes",
         "-DC23",
     };
 
@@ -143,11 +145,11 @@ pub fn build(b: *Build) !void {
 
     // LSF
     const lsf_src_files = [_][]const u8{ "src/ls/main.c", "src/ctypes/strbuild.c", "src/ctypes/table.c" };
-    const lsf = buildC(b, &lsf_src_files, target, optimize, "lsf", global_check, cflags);
+    const lsf = buildC(b, &lsf_src_files, target, optimize, "lsf", global_check, @constCast(&cflags));
 
     // TOUCHF
     const touchf_src_files = [_][]const u8{ "src/touch/main.c", "src/ctypes/table.c" };
-    const touchf = buildC(b, &touchf_src_files, target, optimize, "touchf", global_check, cflags);
+    const touchf = buildC(b, &touchf_src_files, target, optimize, "touchf", global_check, @constCast(&cflags));
 
     // MVF
     const mvf_main = b.path("src/file-io/mv/main.zig");

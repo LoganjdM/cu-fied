@@ -1,4 +1,4 @@
-#include "../ctypes/table.h"
+#include <table.h>
 
 #ifndef __has_embed	
 char c_example[] = "\n";

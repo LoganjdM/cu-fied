@@ -20,7 +20,7 @@
 #define MEMPCPY_IMPLEMENTATION
 #include "../polyfill.h"
 
-#include "../ctypes/strbuild.h"
+#include <strbuild.h>
 #include "file_t_map.h"
 
 // the ENTIRE reason for this is just cuz i thought itd be unique and wanted to see if i could do it //
