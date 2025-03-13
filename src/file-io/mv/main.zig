@@ -25,6 +25,7 @@ fn getLongestOperand(files: []const []const u8) usize {
 
 fn parseArgs(args: *ArgIterator, allocator: Allocator) error{ OutOfMemory, BadArgs }!Params {
     var positionals = std.ArrayListUnmanaged([:0]const u8){};
+    // or iterate over positionals.items[i] != NULL //
 
     while (args.next()) |arg| {
         if (std.mem.eql(u8, arg, "--help")) {
@@ -65,21 +66,14 @@ fn move(allocator: Allocator, sources: []const []const u8, destination: []const 
     // Create null-terminated string.
     const dest = try aAllocator.dupeZ(u8, destination);
 
-    const verbose_longest_operand = getLongestOperand(sources);
-    var dot_count: u8 = 0;
-    const verbose_zig_padding_char = try aAllocator.alloc(u8, verbose_longest_operand);
-    @memset(verbose_zig_padding_char, '-');
-    const verbose_padding_char: [*c]u8 = @ptrCast(verbose_zig_padding_char);
+    // couldn't get struct to destruct... struct to destruct... that has a ring to it //
+    const verbose_args = try file_io.getPaddingVars(sources, aAllocator);
 
     for (sources) |source| {
         // Create more null-terminated strings.
         const src = try aAllocator.dupeZ(u8, source);
         // TODO: this should follow the coreutils way of doing things and only log this on -v //
-        if (dot_count < 3) dot_count += 1 else dot_count -= 2;
-        const padding = verbose_longest_operand - src.len;
-        // TODO: this probably should be abstracted into file-io.zig to reduce code duplication //
-        // printf may as well be its own programming language kek //
-        _ = std.c.printf("\"%s\" %.*s--[moving]--> \"%s\"%.*s\n", zigStrToC(src), padding, verbose_padding_char, zigStrToC(dest), dot_count, "...");
+        file_io.printf_operation(src, dest, verbose_args.len, verbose_args.str, "moving");
         file_io.copy(source, dest, .{ .force = false, .recursive = false, .link = false }) catch return error.OperationError;
         std.posix.unlink(source) catch return error.OperationError;
     }

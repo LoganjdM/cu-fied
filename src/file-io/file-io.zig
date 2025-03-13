@@ -59,3 +59,29 @@ pub fn copy(src: []const u8, dest: []const u8, flags: OperationSettings) Operati
         else => return error.Unexpected,
     };
 }
+
+pub fn getPaddingVars(source_files: []const []const u8, allocator: std.mem.Allocator) error{OutOfMemory}!struct{str: [*]const u8, len: usize} {
+    var longest_operand: usize = 0;
+    for (source_files) |file| {
+        if (file.len > longest_operand) longest_operand = file.len;
+    }
+
+    const zig_padding_str = try allocator.alloc(u8, longest_operand);
+    @memset(zig_padding_str, '-');
+    const C_padding_str: [*c]const u8 = @ptrCast(zig_padding_str);
+    return .{
+        .str = C_padding_str,
+        .len = longest_operand,
+    };
+}
+
+fn zigStrToCStr(str: []const u8) [*c]u8 {
+    return @ptrCast(@constCast(str));
+}
+// i know you hate global vars but idk if zig has static types //
+var dot_count: u8 = 0;
+pub fn printf_operation(src: []const u8, dest: []const u8, longest_src: usize, padding_str: [*c]const u8,  comptime operation: []const u8) void {
+    if (dot_count < 3) dot_count += 1 else dot_count -= 2;
+    // printf may as well be its own programming language kek //
+    _ = std.c.printf("\"%s\" %.*s--[%s]--> \"%s\"%.*s\n", zigStrToCStr(src), longest_src - src.len, padding_str, zigStrToCStr(operation), zigStrToCStr(dest), dot_count, "...");
+}
