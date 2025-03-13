@@ -15,7 +15,11 @@
 
 #include "../colors.h"
 #include "../app_info.h"
-#include "../polyfill/reallocarray.h"
+
+#define REALLOCARRAY_IMPLEMENTATION
+#define MEMPCPY_IMPLEMENTATION
+#include "../polyfill.h"
+
 #include "../ctypes/strbuild.h"
 #include "file_t_map.h"
 

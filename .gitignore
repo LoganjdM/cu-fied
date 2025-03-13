@@ -2,4 +2,6 @@
 zig-out
 
 # any a.out's would come from me effin around with different C compilers than zig's clang frontend(like GCC)
-a.out
+# also I believe you could put this into a single expression but i'm slow
+./**/a.out
+./a.out
