@@ -132,27 +132,23 @@ pub fn main() u8 {
             _ = std.c.printf("\"%s\" %.*s--[copying]--> \"%s\"%.*s\n", zigStrToC(file), padding, verbose_padding_char, zigStrToC(dest), dot_count, "...");
         }
 
-        // does this file exist? //
-        fs.cwd().access(file, .{ .mode = .read_only }) catch |err| {
-            if (!args.verbose) continue;
-
-            color.print(stderr, color.yellow, "Failed to open", .{});
+        // GNU source ass lookin function call //
+        file_io.copy(file, dest, .{
+            .recursive = args.recursive,
+            .force = args.force,
+            .link = args.link,
+        })  catch |err| {
+            color.print(stderr, color.red, "Failed to copy file ", .{});
             color.print(stderr, color.blue, " {s}", .{file});
             const reason = blk: {
-                if (err == error.PermissionDenied) break :blk " (Do you have permission?)";
-                if (err == error.FileNotFound) break :blk " (does it exist?)";
-                if (err == error.BadPathName) break :blk " (is it a valid path?)";
-                break :blk "!";
+                if (err == error.PermissionDenied) break :blk "Do you have permission?";
+                if (err == error.FileNotFound) break :blk "does it exist?";
+                if (err == error.BadPathName) break :blk "is it a valid path?";
+                break :blk err;
             };
-            color.print(stderr, color.yellow, "{s}\n", .{reason});
+            color.print(stderr, color.red, "({any})\n", .{reason});
             continue;
         };
-
-        file_io.copy(file, dest, .{
-            .force = args.force,
-            .recursive = args.recursive,
-            .link = args.link,
-        }) catch |err| color.print(stderr, color.red, "Unexpected error! ({})\n", .{err});
     }
     return 0;
 }

@@ -8,6 +8,8 @@ const ArgIterator = std.process.ArgIterator;
 const Params = struct {
     help: bool = false,
     version: bool = false,
+    verbose: bool = false,
+    force: bool = false,
     sources: ?[]const [:0]const u8 = null,
     destination: ?[:0]const u8 = null,
 };
@@ -26,7 +28,8 @@ fn getLongestOperand(files: []const []const u8) usize {
 fn parseArgs(args: *ArgIterator, allocator: Allocator) error{ OutOfMemory, BadArgs }!Params {
     var positionals = std.ArrayListUnmanaged([:0]const u8){};
     // or iterate over positionals.items[i] != NULL //
-
+    var result: Params = .{};
+    
     while (args.next()) |arg| {
         if (std.mem.eql(u8, arg, "--help")) {
             return Params{ .help = true };
@@ -34,6 +37,14 @@ fn parseArgs(args: *ArgIterator, allocator: Allocator) error{ OutOfMemory, BadAr
             return Params{ .help = true };
         } else if (std.mem.eql(u8, arg, "--version")) {
             return Params{ .version = true };
+        } else if (std.mem.eql(u8, arg, "-f")) {
+            result.force = true;
+        } else if (std.mem.eql(u8, arg, "--force")) {
+            result.force = true;
+        } else if (std.mem.eql(u8, arg, "-v")) {
+            result.verbose = true;
+        } else if (std.mem.eql(u8, arg, "--verbose")) {
+            result.verbose = true;
         } else if (arg[0] == '-') {
             std.log.warn("Unknown option: {?s}", .{arg});
         } else {
@@ -52,29 +63,31 @@ fn parseArgs(args: *ArgIterator, allocator: Allocator) error{ OutOfMemory, BadAr
     const sources = positionals.items[0 .. positionals.items.len - 1];
     const destination = positionals.items[positionals.items.len - 1];
 
-    return Params{
-        .sources = sources,
-        .destination = destination,
-    };
+    result.sources = sources;
+    result.destination = destination;
+    return result;
 }
 
-fn move(allocator: Allocator, sources: []const []const u8, destination: []const u8) error{ OutOfMemory, OperationError }!void {
+fn move(allocator: Allocator, args: Params) error{ OutOfMemory, OperationError }!void {
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const aAllocator = arena.allocator();
 
     // Create null-terminated string.
-    const dest = try aAllocator.dupeZ(u8, destination);
+    const dest = try aAllocator.dupeZ(u8, args.destination.?);
 
     // couldn't get struct to destruct... struct to destruct... that has a ring to it //
-    const verbose_args = try file_io.getPaddingVars(sources, aAllocator);
+    const verbose_args = try file_io.getPaddingVars(args.sources.?, aAllocator);
 
-    for (sources) |source| {
+    for (args.sources.?) |source| {
         // Create more null-terminated strings.
         const src = try aAllocator.dupeZ(u8, source);
-        // TODO: this should follow the coreutils way of doing things and only log this on -v //
-        file_io.printf_operation(src, dest, verbose_args.len, verbose_args.str, "moving");
-        file_io.copy(source, dest, .{ .force = false, .recursive = false, .link = false }) catch return error.OperationError;
+        
+        if (args.verbose) file_io.printf_operation(src, dest, verbose_args.len, verbose_args.str, "moving");
+        file_io.copy(source, dest, .{ .force = args.force, .recursive = false, .link = false, }) catch |err| {
+            if (err == error.FileFound) continue; // dont delete the file !! //
+            return error.OperationError;  
+        };
         std.posix.unlink(source) catch return error.OperationError;
     }
 }
@@ -108,7 +121,7 @@ pub fn main() !u8 {
     assert(args.sources != null);
     assert(args.destination != null);
 
-    try move(allocator, args.sources.?, args.destination.?);
+    try move(allocator, args);
 
     return 0;
 }

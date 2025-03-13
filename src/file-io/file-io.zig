@@ -17,13 +17,22 @@ pub const OperationError = error{
     FileNotFound,
     Unexpected,
     BadPathName,
+    FileFound,
     FileBusy,
     IsDir,
 };
 
 pub fn copy(src: []const u8, dest: []const u8, flags: OperationSettings) OperationError!void {
-    _ = flags; // TODO
-
+    if (!flags.force) {
+        // I miss goto, when used lightly it can make stuff like this nice, but I understand how its easy to enshittify code with it //
+        var skip: bool = true;
+        std.posix.access(dest, 0) catch |err| {
+            if (err == error.FileNotFound) {
+                skip = false;
+            } // should switch(err) but I don't feel like it and we error check later anyways
+        }; if (skip) return error.FileFound;
+    }
+    
     const src_fd = std.posix.open(src, .{}, 0) catch |err| return switch (err) {
         error.AccessDenied => error.AccessDenied,
         error.BadPathName => error.BadPathName,
@@ -36,9 +45,9 @@ pub fn copy(src: []const u8, dest: []const u8, flags: OperationSettings) Operati
 
     // we already did error checking, and all of this should happen so fast that these next things  shouldnt fail //
     // https://ziglang.org/documentation/master/std/#std.c.Stat //
-    const src_mode = (posix.fstat(src_fd) catch return error.Unexpected).mode;
+    const src_st = posix.fstat(src_fd) catch return error.Unexpected;
 
-    const dest_fd = posix.open(dest, .{ .ACCMODE = .RDWR, .CREAT = true }, src_mode) catch |err| return switch (err) {
+    const dest_fd = posix.open(dest, .{ .ACCMODE = .RDWR, .CREAT = true }, src_st.mode) catch |err| return switch (err) {
         error.AccessDenied => error.AccessDenied,
         error.BadPathName => error.BadPathName,
         error.SystemResources => error.SystemResources,
@@ -49,10 +58,9 @@ pub fn copy(src: []const u8, dest: []const u8, flags: OperationSettings) Operati
     };
 
     // sendfile works differently on macos and freebsd! //
-    // zig follows the BSD approach and if in_len is 0, it copies the most data it can //
     // linux: https://www.man7.org/linux/man-pages/man2/sendfile.2.html
     // mac: https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/sendfile.2.html
-    _ = posix.sendfile(dest_fd, src_fd, 0, 0, &[_]posix.iovec_const{}, &[_]posix.iovec_const{}, 0) catch |err| return switch (err) {
+        _ = posix.sendfile(dest_fd, src_fd, 0, @intCast(src_st.size), &[_]posix.iovec_const{}, &[_]posix.iovec_const{}, 0) catch |err| return switch (err) {
         error.AccessDenied => error.AccessDenied,
         error.SystemResources => error.SystemResources,
         error.DeviceBusy => error.SystemResources,
