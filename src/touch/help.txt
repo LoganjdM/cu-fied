@@ -1,6 +1,12 @@
 Usage: touchf [OPTION]... [FILE]...
-Create FILEs that are pre-filled in with data dependent on the FILE extension.
+Create FILE(s) that are pre-filled in with data dependent on the FILE extension.
 
-Arguments do not include much.
-    -h, --help             displays this message.
-    -v, --version          display CU-Fied version
+Options:
+    -f, --force             if the FILE already exists, recreate it
+
+    -s, --dont-fill-file    dont fill the file with hello world or lorem ipsum.
+                            `-s` comes from stupid. because you should just use normal touch.
+
+    -h, --help              displays this help message and exit
+    
+    -v, --version           display CU-Fied version and exit

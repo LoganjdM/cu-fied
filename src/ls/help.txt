@@ -1,16 +1,14 @@
 Usage: lsf [OPTION]... [FILE]...
-List information about the FILEs (the current directory by default) in a "fancified" manner.
-Prints directories first if -U or --unsorted is not specified.
-Color is not printed if stdout is not a tty.
+List information about the FILE(s) (the current directory by default) fancily.
 
-Arguments range from visual preferences to sorting or information to display on files.
+Options:
      -a, --all                 do not ignore entries starting with `.`
      -f, --full                acts as the same as `-a` or `--all`
      -A, --almost-all          prints dot files but excludes `.` and `..`
      -d, --dot-dirs            does not exclude `.` and `..` using this with `-A` or `--almost-all`
                                will act as `-f` or `-a`
 
-     -U, --unsorted            does separate the printing of directories and regular files.
+     -U, --unsorted            doesn't separate the printing of directories and regular files.
 
      -hr, --human-readable     specifies how to display file size: `none`, `bytes`, `binary`, or `si`
                                defaults to `none`, and also does not display size of directories.
@@ -30,3 +28,5 @@ Arguments range from visual preferences to sorting or information to display on 
 
      -h, --help                displays this message.
      -v, --version             display CU-Fied version
+
+Color is not printed if stdout is not a tty.

@@ -1,11 +1,17 @@
-Name: mvf - move files fancily
-
-Usage:
-  mvf [OPTION]... SOURCE TARGET
-  mvf [OPTION]... SOURCE... DIRECTORY
+Usage: mvf [OPTION]... SOURCE DEST
+  or:  mvf [OPTION]... SOURCE... DIRECTORY
+  or:  mvf [OPTION]... -r DIRECTORY DIRECTORY
+Rename SOURCE to DEST, or move SOURCE(s) to DIRECTORY.
 
 Options:
+    -r, --recursive     move directories recursively
 
-  -h, --help  display this help message and exit
+    -i, --interactive   prompt if permission is needed or DEST already exists
 
-  --version   display CU-Fied version and exit
+    -f, --force         lorem ipsum
+    
+    -v, --verbose       print operations being done
+
+    -h, --help          display this help message and exit
+
+    --version           display CU-Fied version and exit

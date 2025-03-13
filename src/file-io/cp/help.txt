@@ -1,1 +1,22 @@
-Lorem ipsum odor amet, consectetuer adipiscing elit.
+Usage: cp [OPTION]... SOURCE DEST
+  or:  cp [OPTION]... SOURCE... DIRECTORY
+  or:  cp [OPTION]... -s DIRECTORY... DIRECTORY
+  or:  cp [OPTION]... -r DIRECTORY... DIRECTORY
+Copy SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY in a fancified manner.
+
+Options:
+    -f, --force             if destination file already exists, copy anyways.
+
+    -i, --interactive       prompt for operations that need super user or `-f` [NOT IMPLEMENTED]
+
+    -l, --link              hard link files instead of copying [NOT IMPLEMENTED]
+
+    -r, --recursive         copy directories revursively [NOT IMPLEMENTED]
+
+    -s, --sync              sync SOURCE and DEST or DIRECTORY to DIRECTORY, assimilar to rsync [NOT IMPLEMENTED]
+
+    -v, --verbose           print operations that are being done
+
+    --version               print Cu-Fied version and exit
+
+    -h, --help              print this message and exit

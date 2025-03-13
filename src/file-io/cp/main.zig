@@ -44,7 +44,7 @@ fn parseArgs(argv: [][*:0]u8, files: *std.ArrayListAligned([*:0]u8, null)) error
             const help_message = @embedFile("help.txt");
             nosuspend stdout.writer().print(help_message, .{}) catch continue; // eh dont give a shi, we are closing anyways //
             std.process.exit(0);
-        } else if (isArg(arg, "-v", "--version")) {
+        } else if (isArg(arg, "--version", "--version")) {
             // stdout.print("{i}", .{.version}); // how get .version tag on `build.zig.zon`?
             std.process.exit(0);
         }

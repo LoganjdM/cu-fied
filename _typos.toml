@@ -2,4 +2,4 @@
 fied = "fied" # As in Cu-fied
 
 [files]
-extend-exclude = ["build.zig.zon", "src/touch/fileconts/example.*"]
+extend-exclude = ["build.zig.zon", "src/touch/fileconts/example.*", "src/touch/help.txt"]
