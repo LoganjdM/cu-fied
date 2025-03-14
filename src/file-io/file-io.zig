@@ -20,15 +20,13 @@ pub const OperationError = error{
 };
 
 pub fn copy(src: []const u8, dest: []const u8, flags: OperationSettings) OperationError!void {
-    if (!flags.force) {
-        // I miss goto, when used lightly it can make stuff like this nice, but I understand how its easy to enshittify code with it //
-        var skip: bool = true;
-        std.posix.access(dest, 0) catch |err| {
-            if (err == error.FileNotFound) {
-                skip = false;
-            } // should switch(err) but I don't feel like it and we error check later anyways
+    if (!flags.force) force: {
+        std.posix.access(dest, 0) catch |err| switch (err) {
+            error.FileNotFound => break :force, // File doesn't exist, proceed with copy
+            else => {},
         };
-        if (skip) return error.FileFound;
+
+        return error.FileFound;
     }
 
     const src_fd = std.posix.open(src, .{}, 0) catch |err| return switch (err) {
