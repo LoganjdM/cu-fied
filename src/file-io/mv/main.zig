@@ -29,7 +29,7 @@ fn parseArgs(args: *ArgIterator, allocator: Allocator) error{ OutOfMemory, BadAr
     var positionals = std.ArrayListUnmanaged([:0]const u8){};
     // or iterate over positionals.items[i] != NULL //
     var result: Params = .{};
-    
+
     while (args.next()) |arg| {
         if (std.mem.eql(u8, arg, "--help")) {
             return Params{ .help = true };
@@ -82,11 +82,15 @@ fn move(allocator: Allocator, args: Params) error{ OutOfMemory, OperationError }
     for (args.sources.?) |source| {
         // Create more null-terminated strings.
         const src = try aAllocator.dupeZ(u8, source);
-        
+
         if (args.verbose) file_io.printf_operation(src, dest, verbose_args.len, verbose_args.str, "moving");
-        file_io.copy(source, dest, .{ .force = args.force, .recursive = false, .link = false, }) catch |err| {
+        file_io.copy(source, dest, .{
+            .force = args.force,
+            .recursive = false,
+            .link = false,
+        }) catch |err| {
             if (err == error.FileFound) continue; // dont delete the file !! //
-            return error.OperationError;  
+            return error.OperationError;
         };
         std.posix.unlink(source) catch return error.OperationError;
     }

@@ -137,7 +137,7 @@ pub fn main() u8 {
             .recursive = args.recursive,
             .force = args.force,
             .link = args.link,
-        })  catch |err| {
+        }) catch |err| {
             color.print(stderr, color.red, "Failed to copy file ", .{});
             color.print(stderr, color.blue, " {s}", .{file});
             const reason = blk: {

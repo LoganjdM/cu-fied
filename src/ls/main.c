@@ -16,6 +16,9 @@
 #include "../colors.h"
 #include "../app_info.h"
 
+#define REALLOCARRAY_IMPLEMENTATION
+#include "../polyfill.h"
+
 // I wish C had zig packed structs //
 #ifndef C23
 typedef int args_t;
