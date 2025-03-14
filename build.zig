@@ -1,9 +1,9 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const Build = std.Build;
-const Compile = Build.Step.Compile;
+const Step = Build.Step;
 
-fn addBuildSteps(b: *Build, name: []const u8, exe: *Compile) void {
+fn addBuildSteps(b: *Build, name: []const u8, exe: *Step.Compile) void {
     b.installArtifact(exe);
 
     const run_exe = b.addRunArtifact(exe);
@@ -16,7 +16,21 @@ fn addBuildSteps(b: *Build, name: []const u8, exe: *Compile) void {
     );
     run.dependOn(&run_exe.step);
 }
-fn buildC(b: *Build, srcs: []const []const u8, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, cflags: []const []const u8, no_bin: bool) *Compile {
+
+fn buildManPage(b: *Build, exe: *Step.Compile) void {
+    const manpage = b.fmt("{s}.1", .{exe.name});
+    const section = 1;
+
+    const tool_run = b.addSystemCommand(&.{"help2man"});
+    tool_run.addArtifactArg(exe);
+
+    const output = tool_run.captureStdOut();
+
+    const install = b.addInstallFile(output, b.fmt("share/man/man{any}/{s}", .{ section, manpage }));
+    b.getInstallStep().dependOn(&install.step);
+}
+
+fn buildC(b: *Build, srcs: anytype, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, cflags: []const []const u8, no_bin: bool, emit_man: bool) void {
     const module = b.createModule(.{
         .target = target,
         .optimize = optimize,
@@ -26,17 +40,17 @@ fn buildC(b: *Build, srcs: []const []const u8, target: Build.ResolvedTarget, opt
         .files = srcs,
         .flags = cflags,
     });
+    module.addIncludePath(b.path("src/ctypes"));
 
     const exe = b.addExecutable(.{
         .name = name,
         .root_module = module,
     });
     if (!no_bin) addBuildSteps(b, name, exe);
-
-    return exe;
+    if (emit_man) buildManPage(b, exe);
 }
 
-fn buildZig(b: *Build, main: Build.LazyPath, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, imports: []const Build.Module.Import, no_bin: bool) *Compile {
+fn buildZig(b: *Build, main: Build.LazyPath, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, imports: []const Build.Module.Import, no_bin: bool, emit_man: bool) void {
     const module = b.createModule(.{
         .root_source_file = main,
         .target = target,
@@ -49,8 +63,7 @@ fn buildZig(b: *Build, main: Build.LazyPath, target: Build.ResolvedTarget, optim
         .root_module = module,
     });
     if (!no_bin) addBuildSteps(b, name, exe);
-
-    return exe;
+    if (emit_man) buildManPage(b, exe);
 }
 
 pub fn build(b: *Build) !void {
@@ -60,7 +73,6 @@ pub fn build(b: *Build) !void {
         if (b.release_mode == .safe) "-fstack-protector-all" else "",
         if (b.release_mode == .safe) "-O" else "",
         "-D_GNU_SOURCE",
-        "-Isrc/ctypes",
         "-DC23",
     };
 
@@ -71,7 +83,16 @@ pub fn build(b: *Build) !void {
     const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseFast });
 
     // Arguments
-    const no_bin = b.option(bool, "no-bin", "Don't emit binaries") orelse false;
+    const no_bin = b.option(bool, "no-emit-bin", "Don't emit binaries") orelse false;
+    const emit_man = b.option(bool, "emit-man-pages", "Generate man pages using GNU `help2man`") orelse
+        (b.release_mode != .off) and
+        (if (b.findProgram(
+            &[_][]const u8{"help2man"},
+            &[_][]const u8{},
+        )) |_| true else |err| switch (err) {
+            error.FileNotFound => false,
+            else => return err,
+        });
 
     // Global
     const fmt_step = b.step("fmt", "Format all zig code");
@@ -115,49 +136,39 @@ pub fn build(b: *Build) !void {
         .{ .name = "file_io", .module = file_io_module },
     };
 
-    // First update versioning's on the C side.. //
-    var fp: std.fs.File = std.fs.cwd().openFile("src/app_info.h", .{ .mode = .write_only }) catch {
-        std.debug.print("You aren't compiling in base dir\n", .{});
-        return error.ShitDidntOpen;
-    };
-    // todo(if it can be done 0.15.0): get this to grab `.version` in build.zig.zon //
-    try fp.writer().print("// This is a [Semantic Version](https://semver.org/)\n" ++
-        "#define __CU_FIED_VERSION__ \"{s}\"\n", .{"0.0.0"});
-    fp.close();
+    // Update versioning on the C side first. //
+    const info_dir = b.addWriteFiles();
+    const info_file = info_dir.add("app_info.h", b.fmt(
+        \\// This is a [Semantic Version](https://semver.org/)
+        \\#define __CU_FIED_VERSION__ "{s}"
+        \\
+    , .{
+        // TODO: grab `.version` in build.zig.zon (if it can be done 0.15.0, ziglang/zig#22775).
+        "0.0.0",
+    }));
+
+    const write_info = b.addUpdateSourceFiles();
+    write_info.addCopyFileToSource(info_file, "src/app_info.h");
+
+    b.step("write-info", "Generate app_info.h").dependOn(&write_info.step);
 
     // LSF
     const lsf_src_files = [_][]const u8{ "src/ls/main.c", "src/stat/do_stat.c", "src/ctypes/strbuild.c", "src/ctypes/table.c" };
-    const lsf = buildC(b, &lsf_src_files, target, optimize, "lsf", @constCast(&cflags), no_bin);
+    buildC(b, &lsf_src_files, target, optimize, "lsf", @constCast(&cflags), no_bin, emit_man);
 
     // STATF
     const statf_src_files = [_][]const u8{ "src/stat/main.c", "src/stat/do_stat.c", "src/ctypes/strbuild.c" };
-    const statf = buildC(b, &statf_src_files, target, optimize, "statf", @constCast(&cflags), no_bin);
+    buildC(b, &statf_src_files, target, optimize, "statf", @constCast(&cflags), no_bin, emit_man);
 
     // TOUCHF
     const touchf_src_files = [_][]const u8{ "src/touch/main.c", "src/ctypes/table.c" };
-    const touchf = buildC(b, &touchf_src_files, target, optimize, "touchf", @constCast(&cflags), no_bin);
+    buildC(b, &touchf_src_files, target, optimize, "touchf", @constCast(&cflags), no_bin, emit_man);
 
     // MVF
     const mvf_main = b.path("src/file-io/mv/main.zig");
-    const mvf = buildZig(b, mvf_main, target, optimize, "mvf", imports, no_bin);
+    buildZig(b, mvf_main, target, optimize, "mvf", imports, no_bin, emit_man);
 
     // CPF
     const cpf_main = b.path("src/file-io/cp/main.zig");
-    _ = buildZig(b, cpf_main, target, optimize, "cpf", imports, no_bin);
-
-    // generate man pages //
-    const help2man = b.step("help2man", "Use GNU `help2man` to generate man pages.");
-
-    const clis = [_]*Compile{ lsf, mvf, touchf, statf };
-
-    for (clis) |cli| {
-        const tool_run = b.addSystemCommand(&.{"help2man"});
-        tool_run.addArtifactArg(cli);
-
-        const manpage = b.fmt("{s}.1", .{cli.name});
-        const output = tool_run.addPrefixedOutputFileArg("-o", manpage);
-
-        const installMan = b.addInstallFile(output, b.fmt("man/{s}", .{manpage}));
-        help2man.dependOn(&installMan.step);
-    }
+    buildZig(b, cpf_main, target, optimize, "cpf", imports, no_bin, false);
 }
