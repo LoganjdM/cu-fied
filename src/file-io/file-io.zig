@@ -90,10 +90,9 @@ fn zigStrToCStr(str: []const u8) [*c]u8 {
     return @ptrCast(@constCast(str));
 }
 
-// i know you hate global vars but idk if zig has static types //
-var dot_count: u8 = 0;
-pub fn printf_operation(src: []const u8, dest: []const u8, longest_src: u64, padding_str: [*c]const u8, comptime operation: []const u8) void {
-    if (dot_count < 3) dot_count += 1 else dot_count -= 2;
+pub fn printfOperation(dot_count: *u8, src: []const u8, dest: []const u8, padding_vars: PaddingVars, comptime operation: []const u8) void {
+    if (dot_count.* < 3) dot_count.* += 1 else dot_count.* -= 2;
+
     // printf may as well be its own programming language kek //
-    _ = std.c.printf("\"%s\" %.*s--[%s]--> \"%s\"%.*s\n", zigStrToCStr(src), longest_src - src.len, padding_str, zigStrToCStr(operation), zigStrToCStr(dest), dot_count, "...");
+    _ = std.c.printf("\"%s\" %.*s--[%s]--> \"%s\"%.*s\n", zigStrToCStr(src), padding_vars.len - src.len, padding_vars.str, zigStrToCStr(operation), zigStrToCStr(dest), dot_count.*, "...");
 }

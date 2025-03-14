@@ -77,13 +77,14 @@ fn move(allocator: Allocator, args: Params) error{ OutOfMemory, OperationError }
     const dest = try aAllocator.dupeZ(u8, args.destination.?);
 
     // couldn't get struct to destruct... struct to destruct... that has a ring to it //
-    const verbose_args = try file_io.getPaddingVars(args.sources.?, aAllocator);
+    const padding_vars = try file_io.getPaddingVars(args.sources.?, aAllocator);
 
+    var dot_count: u8 = 0;
     for (args.sources.?) |source| {
         // Create more null-terminated strings.
         const src = try aAllocator.dupeZ(u8, source);
 
-        if (args.verbose) file_io.printf_operation(src, dest, verbose_args.len, verbose_args.str, "moving");
+        if (args.verbose) file_io.printfOperation(&dot_count, src, dest, padding_vars, "moving");
         file_io.copy(source, dest, .{
             .force = args.force,
             .recursive = false,
