@@ -388,7 +388,7 @@ int main(int argc, char** argv) {
 	file_t* files = NULL;
 	uint8_t longest_fname = 0;
 	size_t largest_fsize = 0, f_count = 0;
-	if (operand_count == 1) {
+	if (operand_count == 0) {
 		files = query_files(".", &longest_fname, &largest_fsize, &f_count, args, 0);
 		if (errno || !files) {
 			// TODO: error checking //
@@ -411,7 +411,7 @@ int main(int argc, char** argv) {
 	}
 
 	uint8_t ret_code = 0;
-	for(int i=0; i<operand_count;) {
+	for(int i=0; i<argc; ++i) {
 		#define OPERAND argv[i]
 		if (!operand_count) break;
 		else if (OPERAND[0] == '-') continue;
@@ -450,7 +450,7 @@ int main(int argc, char** argv) {
 			list_files_retcode =  list_files(files, longest_fdescriptor, f_count, tty_dimensions.ws_col / longest_fdescriptor, f_ext_map, condition_isdir, args);
 		}
 
-		++i;
+		--operand_count;
 		putchar('\n');
 
 		if (operand_count > 1) putchar('\n');
