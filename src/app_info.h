@@ -1,2 +1,2 @@
-// This is a [Semantic Version](https://semver.org/).
-const char vers[] = "0.0.0";
+// This is a [Semantic Version](https://semver.org/)
+#define __CU_FIED_VERSION__ "0.0.0"

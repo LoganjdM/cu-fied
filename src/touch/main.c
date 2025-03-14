@@ -48,7 +48,7 @@ bool parse_args(const char* arg) {
 			puts(help_message);
 			exit(0);
 		} else if(ISARG(arg, "-v", "--version")) {
-			puts(vers);
+			puts(__CU_FIED_VERSION__);
 			exit(0);
 		} else if(ISARG(arg, "-f", "--force")) {
 			args |= ARG_FORCE;
@@ -58,8 +58,7 @@ bool parse_args(const char* arg) {
 
 int main(int argc, char** argv) {
 	if(argc<=1) {
-		printf_escape_code(stderr, RED, "You need at least 1 file to create!");
-		print_escape_code(stderr, RESET);
+		printf_color(stderr, RED, "You need at least 1 file to create!");
 		return -1;
 	}
 	if(!init_table()) {
@@ -80,8 +79,7 @@ int main(int argc, char** argv) {
 
 		FILE* fp = fopen(argv[i], "w");
 		if(!fp) {
-			printf_escape_code(stderr, RED, "Failed to fill file %s! (%s)", argv[i], strerror(errno));
-			printf_escape_code(stderr, RESET, "\n");
+			printf_color(stderr, RED, "Failed to fill file %s! (%s)", argv[i], strerror(errno));
 			continue;
 		}
 

@@ -138,9 +138,13 @@ pub fn build(b: *Build) !void {
     };
 
     // First update versioning's on the C side.. //
-    var fp: std.fs.File = try std.fs.cwd().openFile("src/app_info.h", .{ .mode = .write_only });
-    // TODO: get this to grab `.version` in build.zig.zon //
-    try fp.writer().print("// This is a [Semantic Version](https://semver.org/).\nconst char vers[] = \"{s}\";", .{"0.0.0"}); // catch {
+    var fp: std.fs.File = std.fs.cwd().openFile("src/app_info.h", .{ .mode = .write_only }) catch {
+        std.debug.print("You aren't compiling in base dir\n", .{});
+        return error.ShitDidntOpen;
+    };
+    // todo(if it can be done 0.15.0): get this to grab `.version` in build.zig.zon //
+    try fp.writer().print("// This is a [Semantic Version](https://semver.org/)\n" ++
+        "#define __CU_FIED_VERSION__ \"{s}\"\n", .{"0.0.0"});
     fp.close();
 
     // LSF
