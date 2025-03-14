@@ -16,19 +16,19 @@
 
 #include "../colors.h"
 #include "../app_info.h"
+#include "f_ext_map.h"
 #include <strbuild.h>
-#include <table.h>
 
 #define REALLOCARRAY_IMPLEMENTATION
 #include "../polyfill.h"
 
 // I wish C had zig packed structs //
 #ifndef C23
-#	define i(n) int
+#	define u(n) int
 #else
-#	define i(n) _BitInt(n)
+#	define u(n) unsigned _BitInt(n)
 #endif
-typedef i(8) args_t;
+typedef u(8) args_t;
 
 // bool //
 #define ARG_DOT_DIRS     0b1
@@ -126,7 +126,7 @@ struct file {
 	file_t* recursive_files;
 };
 
-file_t* query_files(const char* path, size_t* longest_fname, size_t* largest_fsize, size_t* f_count, const args_t args) {
+file_t* query_files(const char* path, uint8_t* longest_fname, size_t* largest_fsize, size_t* f_count, const args_t args) {
 	DIR* dfd = opendir(path);
 	if (!dfd) return NULL;
 
@@ -162,7 +162,8 @@ file_t* query_files(const char* path, size_t* longest_fname, size_t* largest_fsi
 			result[*f_count].size = (HR_ARG(args) == 1) ? st.st_size : st.st_blocks;
 		else {
 			// TODO: this is how we will do recursion flag, but for now just ignore it and free this pointer //
-			size_t dir_conts_size = 0, junk0, junk1;
+			size_t dir_conts_size = 0, junk1 = 0;
+			uint8_t junk0 = 0;
 			// prevent endless recursion caused by forever checking "./.", '\000' <repeats 254 times> //
 			if (strcmp(dp->d_name, ".") && strcmp(dp->d_name, "..")) {
 				free(query_files(true_path, &junk0, &dir_conts_size, &junk1, args));
@@ -174,11 +175,42 @@ file_t* query_files(const char* path, size_t* longest_fname, size_t* largest_fsi
 		if (result[*f_count].size > *largest_fsize) *largest_fsize = st.st_size;
 
 		strcpy(result[*f_count].name, dp->d_name);
-		size_t fname = strlen(dp->d_name);
+		uint8_t fname = (uint8_t)strlen(dp->d_name);
 		if (fname > *longest_fname) *longest_fname = fname;
 	}
 
 	closedir(dfd);
+	return result;
+}
+
+float get_simplified_file_size(const size_t f_size, char* unit) {
+	(void)f_size; (void)unit;
+	return 0.0f;
+}
+
+size_t get_longest_fdescriptor(const uint8_t longest_fname, const size_t largest_fsize, const args_t args) {
+	size_t result = (size_t)longest_fname + 3;
+
+	u(2) hr_arg = HR_ARG(args);
+	switch (hr_arg) {
+		case 0: break;
+		case 1:
+			result += floor(log10(largest_fsize)) + 1;
+			break;
+		default:
+			char junk = 0;
+			float hr_size = get_simplified_file_size(largest_fsize, &junk);
+			// "somewhere around this ... shouldn't overflow" am I stupid? if i'm not certain i should use snprintf not sprintf to truly prevent overflow //
+			char largest_hr_fsize[25] = {0};
+			if (hr_arg == 2) result += snprintf(largest_hr_fsize, 25, "%.1f XiB", hr_size);
+			else result += snprintf(largest_hr_fsize, 25, "%.1f XB", hr_size);
+
+			result += /*( ) */4;
+			if (args & ARG_DIR_CONTS) result += /*Contains */9;
+	}
+
+	if (args & ARG_STAT) result += /*<drwxr-xr-x> */13;
+	if (!(args & ARG_NO_NERDFONTS)) result += /* */2;
 	return result;
 }
 
@@ -222,11 +254,6 @@ const char* get_nerdfont_icon(file_t f_info, table_t* f_ext_map, const args_t ar
 	else return " ";
 }
 
-float get_simplified_file_size(const file_t f_info, char* unit) {
-	(void)f_info; (void)unit;
-	return 0.0f;
-}
-
 // oh god i am reading too much GNU source code //
 bool list_files(const file_t* files,
 				const size_t longest_descriptor, const size_t f_count,
@@ -257,7 +284,7 @@ bool list_files(const file_t* files,
 		sb_append(&sb, get_escape_code(STDOUT_FILENO, RESET));
 
 		// ehh _BitInt(2) is nice and explicit but I'm aware compile will make this an i8 //
-		i(2) hr_arg = ((i(2))HR_ARG(args));
+		u(2) hr_arg = HR_ARG(args);
 		if (hr_arg) {
 			descriptor_len += sb_append(&sb, "(");
 			if (S_ISDIR(FILE.stat)) {
@@ -271,7 +298,7 @@ bool list_files(const file_t* files,
 				sprintf(file_size, "%lu B)", FILE.size);
 			} else {
 				char unit = 0;
-				const float hr_size = get_simplified_file_size(FILE, &unit);
+				const float hr_size = get_simplified_file_size(FILE.size, &unit);
 				#define ARBITRARY_SIZE 100
 				if (!(file_size = malloc(ARBITRARY_SIZE))) return false;
 				
@@ -295,9 +322,14 @@ bool list_files(const file_t* files,
 	return true;
 }
 
+bool condition_isdir(mode_t stat) { return S_ISDIR(stat); }
+bool condition_isndir(mode_t stat) { return !S_ISDIR(stat); }
+bool condition_dontcare(mode_t stat) { (void)stat; return false; }		
+
 int main(int argc, char** argv) {
 	struct winsize tty_dimensions = {0};
 	ioctl(STDOUT_FILENO, TIOCGWINSZ, &tty_dimensions);
+
 
 	uint32_t operand_count = 0;
 	const args_t args = parse_argv(argc, argv, &operand_count);
@@ -306,14 +338,34 @@ int main(int argc, char** argv) {
 	printf("args: %b\nsize arg: %b\n", (int)args, (int)HR_ARG(args));
 	#endif
 
+	table_t* f_ext_map = NULL;
+	if (!(args & ARG_NO_NERDFONTS)) {
+		f_ext_map = init_filetype_dict();
+		if (!f_ext_map) {
+			printf_color(stdout, RED, "Failed to allocate memory for file extension table, for nerdfonts!\n");
+			return 1;
+		}
+	}
 	file_t* files = NULL;
-	size_t longest_fname = 0, largest_fsize = 0, f_count = 0;
+	uint8_t longest_fname = 0;
+	size_t largest_fsize = 0, f_count = 0;
 	if (operand_count == 1) {
 		files = query_files(".", &longest_fname, &largest_fsize, &f_count, args);
 		if (errno || !files) {
 			// TODO: error checking //
 			return 1;
 		}
+
+		// TODO: this should be abstracted out to afunction but I don't know what to call the function //
+		int8_t list_files_retcode = 0;
+		size_t longest_fdescriptor = get_longest_fdescriptor(longest_fname, largest_fsize, args);
+		if (args & ARG_UNSORTED)
+			list_files_retcode = list_files(files, longest_fdescriptor, f_count, tty_dimensions.ws_col / longest_fdescriptor, f_ext_map, condition_dontcare, args);
+		else {
+			list_files_retcode =  list_files(files, longest_fdescriptor, f_count, tty_dimensions.ws_col / longest_fdescriptor, f_ext_map, condition_isndir, args);
+			list_files_retcode =  list_files(files, longest_fdescriptor, f_count, tty_dimensions.ws_col / longest_fdescriptor, f_ext_map, condition_isdir, args);
+		}
+		
 		free(files);
 		putchar('\n');
 		return 0;
@@ -348,6 +400,15 @@ int main(int argc, char** argv) {
 		if (errno || !files) {
 			// TODO: error checking //
 			return 1;
+		}
+
+		int8_t list_files_retcode = 0;
+		size_t longest_fdescriptor = get_longest_fdescriptor(longest_fname, largest_fsize, args);
+		if (args & ARG_UNSORTED)
+			list_files_retcode = list_files(files, longest_fdescriptor, f_count, tty_dimensions.ws_col / longest_fdescriptor, f_ext_map, condition_dontcare, args);
+		else {
+			list_files_retcode =  list_files(files, longest_fdescriptor, f_count, tty_dimensions.ws_col / longest_fdescriptor, f_ext_map, condition_isndir, args);
+			list_files_retcode =  list_files(files, longest_fdescriptor, f_count, tty_dimensions.ws_col / longest_fdescriptor, f_ext_map, condition_isdir, args);
 		}
 
 		++i;
