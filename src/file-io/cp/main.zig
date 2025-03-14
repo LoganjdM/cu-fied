@@ -54,8 +54,8 @@ fn parseArgs(argv: [][*:0]u8, files: *std.ArrayListAligned([*:0]u8, null)) error
     return args;
 }
 
-fn getLongestOperand(files: [][*:0]u8) usize {
-    var result: usize = 0;
+fn getLongestOperand(files: [][*:0]u8) u64 {
+    var result: u64 = 0;
     for (files) |fname| {
         const flen = std.mem.len(fname);
         if (flen > result) result = flen;
@@ -99,7 +99,7 @@ pub fn main() u8 {
 
     // verbose padding //
     // kinda ugly vars //
-    var verbose_longest_operand: usize = undefined;
+    var verbose_longest_operand: u64 = undefined;
     var verbose_zig_padding_char: []u8 = undefined;
     var verbose_padding_char: [*c]u8 = undefined;
     if (args.verbose) {
