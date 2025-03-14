@@ -3,24 +3,20 @@ const builtin = @import("builtin");
 const Build = std.Build;
 const Compile = Build.Step.Compile;
 
-fn addBuildSteps(b: *Build, name: []const u8, check_exe: *Build.Step, run_exe: *Build.Step, global_check: *Build.Step) void {
-    // Generate `check-*` step.
-    const check = b.step(
-        b.fmt("check-{s}", .{name}),
-        b.fmt("See if {s} compiles", .{name}),
-    );
-    check.dependOn(check_exe);
-    global_check.dependOn(check_exe);
+fn addBuildSteps(b: *Build, name: []const u8, exe: *Compile) void {
+    b.installArtifact(exe);
+
+    const run_exe = b.addRunArtifact(exe);
+    if (b.args) |args| run_exe.addArgs(args);
 
     // Generate `run-*` step.
     const run = b.step(
         b.fmt("run-{s}", .{name}),
         b.fmt("Run {s}", .{name}),
     );
-    run.dependOn(run_exe);
+    run.dependOn(&run_exe.step);
 }
-
-fn buildC(b: *Build, srcs: anytype, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, global_check: *Build.Step, cflags: []const []const u8) *Compile {
+fn buildC(b: *Build, srcs: anytype, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, cflags: []const []const u8, no_bin: bool) *Compile {
     const module = b.createModule(.{
         .target = target,
         .optimize = optimize,
@@ -35,21 +31,12 @@ fn buildC(b: *Build, srcs: anytype, target: Build.ResolvedTarget, optimize: std.
         .name = name,
         .root_module = module,
     });
-    b.installArtifact(exe);
-
-    const exe_check = b.addExecutable(.{
-        .name = name,
-        .root_module = module,
-    });
-
-    const run_exe = b.addRunArtifact(exe);
-    if (b.args) |args| run_exe.addArgs(args);
-    addBuildSteps(b, name, &exe_check.step, &run_exe.step, global_check);
+    if (!no_bin) addBuildSteps(b, name, exe);
 
     return exe;
 }
 
-fn buildZig(b: *Build, main: Build.LazyPath, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, global_check: *Build.Step, imports: []const Build.Module.Import) *Compile {
+fn buildZig(b: *Build, main: Build.LazyPath, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, imports: []const Build.Module.Import, no_bin: bool) *Compile {
     const module = b.createModule(.{
         .root_source_file = main,
         .target = target,
@@ -61,17 +48,7 @@ fn buildZig(b: *Build, main: Build.LazyPath, target: Build.ResolvedTarget, optim
         .name = name,
         .root_module = module,
     });
-
-    b.installArtifact(exe);
-
-    const exe_check = b.addExecutable(.{
-        .name = name,
-        .root_module = module,
-    });
-
-    const run_exe = b.addRunArtifact(exe);
-    if (b.args) |args| run_exe.addArgs(args);
-    addBuildSteps(b, name, &exe_check.step, &run_exe.step, global_check);
+    if (!no_bin) addBuildSteps(b, name, exe);
 
     return exe;
 }
@@ -93,9 +70,10 @@ pub fn build(b: *Build) !void {
     } });
     const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseFast });
 
-    // Global
-    const global_check = b.step("check", "Check if all apps compile");
+    // Arguments
+    const no_bin = b.option(bool, "no-bin", "Don't emit binaries") orelse false;
 
+    // Global
     const fmt_step = b.step("fmt", "Format all zig code");
     const check_fmt_step = b.step("check-fmt", "Check formatting of all zig code");
 
@@ -149,19 +127,19 @@ pub fn build(b: *Build) !void {
 
     // LSF
     const lsf_src_files = [_][]const u8{ "src/ls/main.c", "src/ctypes/strbuild.c", "src/ctypes/table.c" };
-    const lsf = buildC(b, &lsf_src_files, target, optimize, "lsf", global_check, @constCast(&cflags));
+    const lsf = buildC(b, &lsf_src_files, target, optimize, "lsf", @constCast(&cflags), no_bin);
 
     // TOUCHF
     const touchf_src_files = [_][]const u8{ "src/touch/main.c", "src/ctypes/table.c" };
-    const touchf = buildC(b, &touchf_src_files, target, optimize, "touchf", global_check, @constCast(&cflags));
+    const touchf = buildC(b, &touchf_src_files, target, optimize, "touchf", @constCast(&cflags), no_bin);
 
     // MVF
     const mvf_main = b.path("src/file-io/mv/main.zig");
-    const mvf = buildZig(b, mvf_main, target, optimize, "mvf", global_check, imports);
+    const mvf = buildZig(b, mvf_main, target, optimize, "mvf", imports, no_bin);
 
     // CPF
     const cpf_main = b.path("src/file-io/cp/main.zig");
-    _ = buildZig(b, cpf_main, target, optimize, "cpf", global_check, imports);
+    _ = buildZig(b, cpf_main, target, optimize, "cpf", imports, no_bin);
 
     // generate man pages //
     const help2man = b.step("help2man", "Use GNU `help2man` to generate man pages.");
