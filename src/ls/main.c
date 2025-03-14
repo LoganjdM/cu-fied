@@ -325,11 +325,10 @@ bool list_files(const file_t* files,
 		// ehh _BitInt(2) is nice and explicit but I'm aware compile will make this an i8 //
 		u(2) hr_arg = HR_ARG(args);
 		if (hr_arg) {
-			descriptor_len += sb_append(&sb, "(");
 			if (S_ISDIR(FILE.stat)) {
 				if (!(args & ARG_DIR_CONTS)) goto skip_dirs;
-				else descriptor_len += sb_append(&sb, "Contains ");
-			}
+				else descriptor_len += sb_append(&sb, "(Contains ");
+			} else descriptor_len += sb_append(&sb, "(");
 
 			char* file_size = NULL;
 			if (hr_arg == 1) {
@@ -340,8 +339,9 @@ bool list_files(const file_t* files,
 				const float hr_size = get_simplified_file_size(FILE.size, &unit, args);
 				#define ARBITRARY_SIZE 100
 				if (!(file_size = malloc(ARBITRARY_SIZE))) return false;
-				
-				if (unit == 0) snprintf(file_size, ARBITRARY_SIZE, "%.1f B)", hr_size);
+
+				// file system block of 8 KiB bytes on linux //
+				if (unit == 0) snprintf(file_size, ARBITRARY_SIZE, "%.0f Blocks)", hr_size);
 				else if (hr_arg == 2) snprintf(file_size, ARBITRARY_SIZE, "%.1f %ciB", hr_size, unit);
 				else snprintf(file_size, ARBITRARY_SIZE, "%.1f %cB", hr_size, unit);
 				#undef ARBITRARY_SIZE
