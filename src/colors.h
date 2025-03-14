@@ -19,26 +19,26 @@
 
 bool force_color = false;
 
-const char* escape_code(int fd, const char ansi[5]) {
+const char* get_escape_code(int fd, const char ansi[5]) {
 	if(isatty(fd) || force_color) {
 		return ansi;
 	} else return "\0";
 }
 
 int print_escape_code(FILE* fp, const char ansi[5]) {
-	const char* bytes = escape_code(fileno(fp), ansi);
+	const char* bytes = get_escape_code(fileno(fp), ansi);
 	if(!bytes) return 0;
 	return fputs(bytes, fp);
 }
 
 int printf_color(FILE* fp, const char ansi[5], char* fmt, ...) {
-	fputs(escape_code(fileno(fp), ansi), fp);
+	fputs(get_escape_code(fileno(fp), ansi), fp);
 
 	int printed = 0;
 	va_list args;
 	va_start(args, fmt);
 	printed += vfprintf(fp, fmt, args);
 	va_end(args);
-	fputs(escape_code(fileno(fp), RESET), fp);
+	fputs(get_escape_code(fileno(fp), RESET), fp);
 	return printed;
 }

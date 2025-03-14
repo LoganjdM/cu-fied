@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <stdio.h>
+#include <math.h> // floor() and log10()
 // this is not how to properly see if this is C23 but oh well //
 #ifndef C23
 #	include <stdbool.h>
@@ -15,16 +16,19 @@
 
 #include "../colors.h"
 #include "../app_info.h"
+#include <strbuild.h>
+#include <table.h>
 
 #define REALLOCARRAY_IMPLEMENTATION
 #include "../polyfill.h"
 
 // I wish C had zig packed structs //
 #ifndef C23
-typedef int args_t;
+#	define i(n) int
 #else
-typedef _BitInt(8) args_t;
+#	define i(n) _BitInt(n)
 #endif
+typedef i(8) args_t;
 
 // bool //
 #define ARG_DOT_DIRS     0b1
@@ -122,7 +126,7 @@ struct file {
 	file_t* recursive_files;
 };
 
-file_t* query_files(const char* path, size_t* longest_fname, size_t* largest_fsize, size_t* fcount, const args_t args) {
+file_t* query_files(const char* path, size_t* longest_fname, size_t* largest_fsize, size_t* f_count, const args_t args) {
 	DIR* dfd = opendir(path);
 	if (!dfd) return NULL;
 
@@ -137,10 +141,10 @@ file_t* query_files(const char* path, size_t* longest_fname, size_t* largest_fsi
 
 	char true_path[strlen(path) + 257] = {};
 	struct stat st = {}; struct dirent* dp = NULL;
-	for (*fcount=0; (dp=readdir(dfd))!=NULL; ++*fcount) {
-		if (*fcount >= da_len) {
+	for (*f_count=0; (dp=readdir(dfd))!=NULL; ++*f_count) {
+		if (*f_count >= da_len) {
 			// I feel like (2da_len)/2 may get sneakily optimized out by -O... //
-			if (*fcount != 0 && (2*da_len)/2 != *fcount) {
+			if (*f_count != 0 && (2*da_len)/2 != *f_count) {
 				errno = EOVERFLOW;
 				break;
 			} da_len*=2;
@@ -153,25 +157,142 @@ file_t* query_files(const char* path, size_t* longest_fname, size_t* largest_fsi
 		sprintf(true_path, "%s/%s", path, dp->d_name);
 		stat(true_path, &st);
 
-		result[*fcount].stat = st.st_mode;
+		result[*f_count].stat = st.st_mode;
 		if (!S_ISDIR(st.st_mode))
-			result[*fcount].size = (HR_ARG(args) == 1) ? st.st_size : st.st_blocks;
+			result[*f_count].size = (HR_ARG(args) == 1) ? st.st_size : st.st_blocks;
 		else {
-			size_t dir_conts_size = 0, junk0, junk1;
 			// TODO: this is how we will do recursion flag, but for now just ignore it and free this pointer //
-			free(query_files(path, &junk0, &dir_conts_size, &junk1, args));
-			result[*fcount].size = dir_conts_size;
+			size_t dir_conts_size = 0, junk0, junk1;
+			// prevent endless recursion caused by forever checking "./.", '\000' <repeats 254 times> //
+			if (strcmp(dp->d_name, ".") && strcmp(dp->d_name, "..")) {
+				free(query_files(true_path, &junk0, &dir_conts_size, &junk1, args));
+			}
+		
+			result[*f_count].size = dir_conts_size;
 		}
 
-		if (result[*fcount].size > *largest_fsize) *largest_fsize = st.st_size;
+		if (result[*f_count].size > *largest_fsize) *largest_fsize = st.st_size;
 
-		strcpy(result[*fcount].name, dp->d_name);
+		strcpy(result[*f_count].name, dp->d_name);
 		size_t fname = strlen(dp->d_name);
 		if (fname > *longest_fname) *longest_fname = fname;
 	}
 
 	closedir(dfd);
 	return result;
+}
+
+const char* get_descriptor_color(file_t f_info, table_t* f_ext_map) {
+	if(f_info.stat & S_IFDIR) return get_escape_code(STDOUT_FILENO, BLUE);
+	else if(f_info.stat & S_IXUSR) return get_escape_code(STDOUT_FILENO, GREEN);
+
+	char* is_media = NULL; char* extension = NULL;
+	char* tok = strtok(f_info.name, ".");
+	while(tok) {
+		extension = tok;
+		tok = strtok(NULL, ".");
+	} if(!(is_media=f_ext_map->get(f_ext_map, extension).p)) return "\0";
+
+	// TODO: prob could do some boolean math here instead of 78352957 237y89523 if statements //
+	if(!strcmp(is_media, "󰈟 ")) return get_escape_code(STDOUT_FILENO, YELLOW);
+	else if(!strcmp(is_media, "󰵸 ")) return get_escape_code(STDOUT_FILENO, YELLOW);
+	else if(!strcmp(is_media, "󰜡 ")) return get_escape_code(STDOUT_FILENO, YELLOW);
+	else if(!strcmp(is_media, "󰈫 ")) return get_escape_code(STDOUT_FILENO, YELLOW);
+	else if(!strcmp(is_media, "󰈫 ")) return get_escape_code(STDOUT_FILENO, YELLOW);
+
+	if(f_info.stat & S_IFREG) return "\0";
+	else return get_escape_code(STDOUT_FILENO, CYAN); // must be symlink //
+}
+
+const char* get_nerdfont_icon(file_t f_info, table_t* f_ext_map, const args_t args) {
+	if (args & ARG_NO_NERDFONTS) return "\0";
+
+	char* result = NULL;
+	if ((result = f_ext_map->get(f_ext_map, f_info.name).s)) return result;
+
+	char* tok = strtok(f_info.name, ".");
+	while (tok) {
+		result = tok;
+		tok = strtok (NULL, ".");
+	} if((result = f_ext_map->get(f_ext_map, result).s) &&
+		 !(!strcmp(result, " ") && S_ISDIR(f_info.stat)) /*HACK TO GET RID OF `lib` DIRS */ ) return result;
+
+	if(S_ISDIR(f_info.stat)) return " ";
+	else if(f_info.stat & S_IXUSR) return " ";
+	else return " ";
+}
+
+float get_simplified_file_size(const file_t f_info, char* unit) {
+	(void)f_info; (void)unit;
+	return 0.0f;
+}
+
+// oh god i am reading too much GNU source code //
+bool list_files(const file_t* files,
+				const size_t longest_descriptor, const size_t f_count,
+				const uint32_t files_per_row,
+				table_t* f_ext_map, 
+				bool (*condition)(mode_t),
+				args_t args) {
+	assert(f_ext_map);
+
+	static size_t files_printed = 0;
+	for (size_t i=0; i<f_count; ++i) {
+		#define FILE files[i]
+		if (condition(FILE.stat)) continue;
+		else if (FILE.name[0] == '.') {
+			if (!(args & ARG_DOT_DIRS) && !(strcmp(FILE.name, ".") && strcmp(FILE.name, ".."))) continue;
+			else if (!(args & ARG_DOT_FILES)) continue;
+		}
+
+		strbuild_t sb = sb_new();
+		size_t descriptor_len = 0;
+		
+		sb_append(&sb, get_descriptor_color(FILE, f_ext_map));
+		descriptor_len += sb_append(&sb, get_nerdfont_icon(FILE, f_ext_map, args));
+		sb_append(&sb, get_escape_code(STDOUT_FILENO, BOLD));
+
+		descriptor_len += sb_append(&sb, FILE.name);
+		descriptor_len += sb_append(&sb, " ");
+		sb_append(&sb, get_escape_code(STDOUT_FILENO, RESET));
+
+		// ehh _BitInt(2) is nice and explicit but I'm aware compile will make this an i8 //
+		i(2) hr_arg = ((i(2))HR_ARG(args));
+		if (hr_arg) {
+			descriptor_len += sb_append(&sb, "(");
+			if (S_ISDIR(FILE.stat)) {
+				if (!(args & ARG_DIR_CONTS)) goto skip_dirs;
+				else descriptor_len += sb_append(&sb, "Contains ");
+			}
+
+			char* file_size = NULL;
+			if (hr_arg == 1) {
+				if (!(file_size = malloc(floor(log10(FILE.size)) + 4))) return false;
+				sprintf(file_size, "%lu B)", FILE.size);
+			} else {
+				char unit = 0;
+				const float hr_size = get_simplified_file_size(FILE, &unit);
+				#define ARBITRARY_SIZE 100
+				if (!(file_size = malloc(ARBITRARY_SIZE))) return false;
+				
+				if (unit == 0) snprintf(file_size, ARBITRARY_SIZE, "%.1f B)", hr_size);
+				else if (hr_arg == 2) snprintf(file_size, ARBITRARY_SIZE, "%.1f %ciB", hr_size, unit);
+				else snprintf(file_size, ARBITRARY_SIZE, "%.1f %cB", hr_size, unit);
+				#undef ARBITRARY_SIZE
+				descriptor_len += sb_append(&sb, file_size);
+			}
+			free(file_size);
+		} skip_dirs:
+
+		for (size_t i=longest_descriptor-descriptor_len; i>0; --i) sb_append(&sb, " ");
+		++files_printed;
+		// i tried doing this based off bytes printed, gave issues. also same with using `i % files_per_row` as it gave some segfault i dont understand to be real with you //
+		if(files_printed >= files_per_row) {
+			printf("%s\n", sb.str); files_printed = 0;
+		} else printf("%s", sb.str);
+		free(sb.str);
+	}
+	return true;
 }
 
 int main(int argc, char** argv) {
@@ -186,9 +307,9 @@ int main(int argc, char** argv) {
 	#endif
 
 	file_t* files = NULL;
-	size_t longest_fname = 0, largest_fsize = 0, fcount = 0;
+	size_t longest_fname = 0, largest_fsize = 0, f_count = 0;
 	if (operand_count == 1) {
-		files = query_files(".", &longest_fname, &largest_fsize, &fcount, args);
+		files = query_files(".", &longest_fname, &largest_fsize, &f_count, args);
 		if (errno || !files) {
 			// TODO: error checking //
 			return 1;
@@ -199,7 +320,7 @@ int main(int argc, char** argv) {
 	}
 
 	uint8_t ret_code = 0;
-	for(int i=1; i<argc; ++i) {
+	for(int i=0; i<operand_count;) {
 		#define OPERAND argv[i]
 		if (!operand_count) break;
 		else if (OPERAND[0] == '-') continue;
@@ -222,14 +343,14 @@ int main(int argc, char** argv) {
 		printf_color(stdout, BLUE, "%s:\n", OPERAND);
 
 		errno = 0;
-		longest_fname = 0, largest_fsize = 0, fcount = 0;
-		files = query_files(".", &longest_fname, &largest_fsize, &fcount, args);
+		longest_fname = 0, largest_fsize = 0, f_count = 0;
+		files = query_files(".", &longest_fname, &largest_fsize, &f_count, args);
 		if (errno || !files) {
 			// TODO: error checking //
 			return 1;
 		}
 
-		--operand_count;
+		++i;
 		putchar('\n');
 
 		if (operand_count > 1) putchar('\n');
