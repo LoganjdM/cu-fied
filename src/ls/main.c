@@ -28,7 +28,7 @@
 #else
 #	define u(n) unsigned _BitInt(n)
 #endif
-typedef u(8) args_t;
+typedef u(9) args_t;
 
 // bool //
 #define ARG_DOT_DIRS     0b1
@@ -39,8 +39,10 @@ typedef u(8) args_t;
 #define ARG_DIR_CONTS    0b100000
 // u2 //
 #define HR_ARG(args)  (args >> 6 & 0b11)
+// bool //
+#define ARG_RECURSIVE    0b100000000
 
-#define IS_ARG(arg, str_short, str_long) !(strcmp(arg, str_short) || strcmp(arg, str_long))
+#define IS_ARG(arg, str_short, str_long) (!strcmp(arg, str_short) || !strcmp(arg, str_long))
 args_t parse_argv(const int argc, char** argv, uint32_t* operant_count) {
 	assert(operant_count);
 	args_t result = 0b0;
@@ -126,7 +128,13 @@ struct file {
 	file_t* recursive_files;
 };
 
-file_t* query_files(const char* path, uint8_t* longest_fname, size_t* largest_fsize, size_t* f_count, const args_t args) {
+file_t* query_files(const char* path, uint8_t* longest_fname, size_t* largest_fsize, size_t* f_count, const args_t args, const uint16_t recurse) {
+	if (!(args & ARG_RECURSIVE)) {
+		if (recurse >= 1) {
+			errno = 22;
+			return NULL;
+		}
+	}
 	DIR* dfd = opendir(path);
 	if (!dfd) return NULL;
 
@@ -165,8 +173,11 @@ file_t* query_files(const char* path, uint8_t* longest_fname, size_t* largest_fs
 			size_t dir_conts_size = 0, junk1 = 0;
 			uint8_t junk0 = 0;
 			// prevent endless recursion caused by forever checking "./.", '\000' <repeats 254 times> //
+			// FIXME: this is very fucking slow, infact, this ENTIRE function should be rewritten to use fts(3), as that would be quicker than stat'ing and usind dirent. //
+			// FIXME: infact, I havn't checked ls src code in a bit, but I wonder if they even do recursion on --recursive or just us fts. //
 			if (strcmp(dp->d_name, ".") && strcmp(dp->d_name, "..")) {
-				free(query_files(true_path, &junk0, &dir_conts_size, &junk1, args));
+				free(query_files(true_path, &junk0, &dir_conts_size, &junk1, args, recurse + 1));
+				errno = 0; // < this sucks, essentially throws awaay whatever error we had //
 			}
 		
 			result[*f_count].size = dir_conts_size;
@@ -183,12 +194,40 @@ file_t* query_files(const char* path, uint8_t* longest_fname, size_t* largest_fs
 	return result;
 }
 
-float get_simplified_file_size(const size_t f_size, char* unit) {
-	(void)f_size; (void)unit;
-	return 0.0f;
+float get_simplified_file_size(const size_t f_size, char* unit, args_t args) {
+	(void)args; // < TODO
+	assert(*unit == 0);
+
+ 	// his shows ULONG_MAX on my system is 19 digits long, perfectly representable by 8 bits //
+	// int main(void) {
+	// 	printf("%f", floor(log10((double)ULONG_MAX)));
+	// 	return 0;
+	// }
+	uint8_t exponent = 0;
+	if (f_size != 0) exponent = floor(log10(f_size));
+	if ((exponent + 1) < 3) return (float)f_size;
+
+	// exponent + 1 == strlen(f_size) //
+	switch (exponent) {
+		case 4: *unit = 'K'; break;
+		case 5: *unit = 'M'; break;
+		case 6: *unit = 'G'; break;
+		case 7: *unit = 'T'; break;
+		case 8: *unit = 'P'; break;
+		case 9: *unit = 'E'; break;
+		case 10: *unit = 'Z'; break;
+		// I better never see this shit be incorrect because your file happens to be bigger than a yottabyte fucking galactic machine //
+		case 11: *unit = 'Y'; break;
+	}
+	
+	// si(x) = x/10^(floor∘log₁₀)(x)
+	// i spent like 30 minutes figuring that equation out
+	return (float)f_size / pow(10, exponent);
 }
 
 size_t get_longest_fdescriptor(const uint8_t longest_fname, const size_t largest_fsize, const args_t args) {
+	assert(largest_fsize != 0);
+	
 	size_t result = (size_t)longest_fname + 3;
 
 	u(2) hr_arg = HR_ARG(args);
@@ -199,7 +238,7 @@ size_t get_longest_fdescriptor(const uint8_t longest_fname, const size_t largest
 			break;
 		default:
 			char junk = 0;
-			float hr_size = get_simplified_file_size(largest_fsize, &junk);
+			float hr_size = get_simplified_file_size(largest_fsize, &junk, args);
 			// "somewhere around this ... shouldn't overflow" am I stupid? if i'm not certain i should use snprintf not sprintf to truly prevent overflow //
 			char largest_hr_fsize[25] = {0};
 			if (hr_arg == 2) result += snprintf(largest_hr_fsize, 25, "%.1f XiB", hr_size);
@@ -294,11 +333,11 @@ bool list_files(const file_t* files,
 
 			char* file_size = NULL;
 			if (hr_arg == 1) {
-				if (!(file_size = malloc(floor(log10(FILE.size)) + 4))) return false;
+				if (!(file_size = malloc(floor(log10(FILE.size + 1)) + 4))) return false;
 				sprintf(file_size, "%lu B)", FILE.size);
 			} else {
 				char unit = 0;
-				const float hr_size = get_simplified_file_size(FILE.size, &unit);
+				const float hr_size = get_simplified_file_size(FILE.size, &unit, args);
 				#define ARBITRARY_SIZE 100
 				if (!(file_size = malloc(ARBITRARY_SIZE))) return false;
 				
@@ -334,8 +373,8 @@ int main(int argc, char** argv) {
 	uint32_t operand_count = 0;
 	const args_t args = parse_argv(argc, argv, &operand_count);
 	#ifndef NDEBUG
-	// https://www.open-std.org/jtc1/sc22/wg14/www/docs/n3047.pdf, _BitInt is converted to corresponding bit precision, so int is fully representable here //
-	printf("args: %b\nsize arg: %b\n", (int)args, (int)HR_ARG(args));
+	// https://www.open-std.org/jtc1/sc22/wg14/www/docs/n3047.pdf, _BitInt is converted to corresponding bit percision, so int is fully representable here //
+	printf("args: %b\noperands: %i\n", (int)args, operand_count);
 	#endif
 
 	table_t* f_ext_map = NULL;
@@ -350,7 +389,7 @@ int main(int argc, char** argv) {
 	uint8_t longest_fname = 0;
 	size_t largest_fsize = 0, f_count = 0;
 	if (operand_count == 1) {
-		files = query_files(".", &longest_fname, &largest_fsize, &f_count, args);
+		files = query_files(".", &longest_fname, &largest_fsize, &f_count, args, 0);
 		if (errno || !files) {
 			// TODO: error checking //
 			return 1;
@@ -396,7 +435,7 @@ int main(int argc, char** argv) {
 
 		errno = 0;
 		longest_fname = 0, largest_fsize = 0, f_count = 0;
-		files = query_files(".", &longest_fname, &largest_fsize, &f_count, args);
+		files = query_files(".", &longest_fname, &largest_fsize, &f_count, args, 0);
 		if (errno || !files) {
 			// TODO: error checking //
 			return 1;
