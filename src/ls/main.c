@@ -46,7 +46,7 @@ args_t parse_argv(const int argc, char** argv, uint32_t* operant_count) {
 			++*operant_count;
 			continue;
 		}
-		
+
 		if (IS_ARG(ARG, "-a", "--all"))
 			result |= ARG_DOT_FILES | ARG_DOT_DIRS;
 		else if (IS_ARG(ARG, "-A", "--almost-all"))
@@ -68,7 +68,7 @@ args_t parse_argv(const int argc, char** argv, uint32_t* operant_count) {
 				printf_color(stderr, YELLOW, "\"%s\" is missing it's specification! (assumed none, check --help next time).\n", ARG);
 				return result;
 			} ++i;
-			
+
 			switch(ARG[0]) {
 				case 's':
 					result |= 0b11 << 6; break;
@@ -79,7 +79,7 @@ args_t parse_argv(const int argc, char** argv, uint32_t* operant_count) {
 					else result |= 0b1 << 6;
 					break;
 				default:
-					// atoi(3) can fail, but "0 on error", so we asssume none //
+					// atoi(3) can fail, but "0 on error", so we assume none //
 					uint8_t hr_val= (uint8_t)atoi(ARG);
 					if (hr_val <= 3) result |= hr_val << 6;
 			}
@@ -129,7 +129,7 @@ file_t* query_files(const char* path, size_t* longest_fname, size_t* largest_fsi
 	#define DA_STARTING_LEN 32
 	size_t da_len = DA_STARTING_LEN;
 	file_t* result = (file_t*)calloc(da_len, sizeof(file_t));
-	// I'd normally use a goto here but since we allocate a bunch of variable sized var's on the stack, we can't gurantee our scope to be constant size... but now that I think about it whenever I use goto, i use it like a defer... god damn i wish this old ass language had some of zig's features(yes i'm aware defer was proposed to the C standard) //
+	// I'd normally use a goto here but since we allocate a bunch of variable sized var's on the stack, we can't guarantee our scope to be constant size... but now that I think about it whenever I use goto, i use it like a defer... god damn i wish this old ass language had some of zig's features(yes i'm aware defer was proposed to the C standard) //
 	if (!result) {
 		closedir(dfd);
 		return NULL;
@@ -181,7 +181,7 @@ int main(int argc, char** argv) {
 	uint32_t operand_count = 0;
 	const args_t args = parse_argv(argc, argv, &operand_count);
 	#ifndef NDEBUG
-	// https://www.open-std.org/jtc1/sc22/wg14/www/docs/n3047.pdf, _BitInt is converted to corresponding bit percision, so int is fully representable here //
+	// https://www.open-std.org/jtc1/sc22/wg14/www/docs/n3047.pdf, _BitInt is converted to corresponding bit precision, so int is fully representable here //
 	printf("args: %b\nsize arg: %b\n", (int)args, (int)HR_ARG(args));
 	#endif
 
@@ -217,7 +217,7 @@ int main(int argc, char** argv) {
 			// and I don't know what to do for either of those that hasn't already been done well //
 			continue;
 		}
-		
+
 		if (!(args & ARG_NO_NERDFONTS)) printf_color(stdout, BLUE, " ");
 		printf_color(stdout, BLUE, "%s:\n", OPERAND);
 

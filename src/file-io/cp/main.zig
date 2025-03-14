@@ -132,7 +132,7 @@ pub fn main() u8 {
             _ = std.c.printf("\"%s\" %.*s--[copying]--> \"%s\"%.*s\n", zigStrToC(file), padding, verbose_padding_char, zigStrToC(dest), dot_count, "...");
         }
 
-        // GNU source ass lookin function call //
+        // GNU source looking function call //
         file_io.copy(file, dest, .{
             .recursive = args.recursive,
             .force = args.force,

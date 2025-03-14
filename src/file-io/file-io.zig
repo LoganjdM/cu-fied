@@ -1,8 +1,5 @@
 const std = @import("std");
-const target = @import("builtin").target;
 const posix = std.posix;
-// const os = std.os;
-const fs = std.fs;
 
 pub const OperationSettings = packed struct {
     force: bool,
@@ -44,7 +41,7 @@ pub fn copy(src: []const u8, dest: []const u8, flags: OperationSettings) Operati
         else => return error.Unexpected,
     };
 
-    // we already did error checking, and all of this should happen so fast that these next things  shouldnt fail //
+    // we already did error checking, and all of this should happen so fast that these next things shouldnt fail //
     // https://ziglang.org/documentation/master/std/#std.c.Stat //
     const src_st = posix.fstat(src_fd) catch return error.Unexpected;
 
@@ -69,7 +66,12 @@ pub fn copy(src: []const u8, dest: []const u8, flags: OperationSettings) Operati
     };
 }
 
-pub fn getPaddingVars(source_files: []const []const u8, allocator: std.mem.Allocator) error{OutOfMemory}!struct { str: [*]const u8, len: usize } {
+const PaddingVars = struct {
+    str: [*c]const u8,
+    len: u64,
+};
+
+pub fn getPaddingVars(source_files: []const []const u8, allocator: std.mem.Allocator) error{OutOfMemory}!PaddingVars {
     var longest_operand: usize = 0;
     for (source_files) |file| {
         if (file.len > longest_operand) longest_operand = file.len;
@@ -87,6 +89,7 @@ pub fn getPaddingVars(source_files: []const []const u8, allocator: std.mem.Alloc
 fn zigStrToCStr(str: []const u8) [*c]u8 {
     return @ptrCast(@constCast(str));
 }
+
 // i know you hate global vars but idk if zig has static types //
 var dot_count: u8 = 0;
 pub fn printf_operation(src: []const u8, dest: []const u8, longest_src: usize, padding_str: [*c]const u8, comptime operation: []const u8) void {
