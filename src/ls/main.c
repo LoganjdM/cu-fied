@@ -195,7 +195,6 @@ file_t* query_files(const char* path, uint8_t* longest_fname, size_t* largest_fs
 }
 
 float get_simplified_file_size(const size_t f_size, char* unit, args_t args) {
-	(void)args; // < TODO
 	assert(*unit == 0);
 
  	// his shows ULONG_MAX on my system is 19 digits long, perfectly representable by 8 bits //
@@ -222,11 +221,13 @@ float get_simplified_file_size(const size_t f_size, char* unit, args_t args) {
 	
 	// si(x) = x/10^(floor∘log₁₀)(x)
 	// i spent like 30 minutes figuring that equation out
-	return (float)f_size / pow(10, exponent);
+	u(2) hr_arg = HR_ARG(args);
+	if (hr_arg == 3) return (float)f_size / pow(10, exponent);
+	else (float)f_size * ( pow(2 * exponent, 10) ); // TODO: base2 math would make this faster and be more accurate //
 }
 
 size_t get_longest_fdescriptor(const uint8_t longest_fname, const size_t largest_fsize, const args_t args) {
-	assert(largest_fsize != 0);
+	// assert(largest_fsize != 0);
 	
 	size_t result = (size_t)longest_fname + 3;
 
@@ -419,10 +420,12 @@ int main(int argc, char** argv) {
 
 		struct stat st;
 		if (stat(OPERAND, &st) == -1) {
-			// TODO: error check //
-			ret_code += 1;
+			printf_color(stderr, YELLOW, "Failed to access %s! (Do you have permission?)\n", OPERAND);
+			++ret_code;
 			continue;
 		} else if (!S_ISDIR(st.st_mode)) {
+			// FIXME: why tf does this print? //
+			puts("Currently using lsf on files does nothing. It is planned in the futre to call to `cat`");
 			// TODO: call to cat, bat, or catf.... auctually... //
 			// side rant: I don't know if Cu-Fied will implement cat or cd //
 			// for cat, bat is already REALLY good, and for cd zoxide works wonders.. //
@@ -435,10 +438,18 @@ int main(int argc, char** argv) {
 
 		errno = 0;
 		longest_fname = 0, largest_fsize = 0, f_count = 0;
-		files = query_files(".", &longest_fname, &largest_fsize, &f_count, args, 0);
+		files = query_files(OPERAND, &longest_fname, &largest_fsize, &f_count, args, 0);
 		if (errno || !files) {
-			// TODO: error checking //
-			return 1;
+			switch (errno) {
+				case EOVERFLOW:
+					printf_color(stderr, RED, "Failed to allocate memory for listing %s! (Multiplication overflow!)\n", OPERAND);
+				case ENOMEM:
+					printf_color(stderr, RED, "Failed to allocate memory for listing %s! (Out of memory!)\n", OPERAND);
+				default:
+					printf_color(stderr, RED, "Failed to list %s!\n", OPERAND);
+			}
+			++ret_code;
+			goto failed_to_query_files;
 		}
 
 		int8_t list_files_retcode = 0;
@@ -450,6 +461,8 @@ int main(int argc, char** argv) {
 			list_files_retcode =  list_files(files, longest_fdescriptor, f_count, tty_dimensions.ws_col / longest_fdescriptor, f_ext_map, condition_isdir, args);
 		}
 
+		failed_to_query_files:
+	
 		--operand_count;
 		putchar('\n');
 
