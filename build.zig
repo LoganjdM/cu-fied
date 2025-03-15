@@ -34,10 +34,17 @@ fn buildManPage(b: *Build, exe: *Step.Compile) void {
     b.getInstallStep().dependOn(&install.step);
 }
 
-fn buildC(b: *Build, srcs: anytype, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, cflags: []const []const u8, no_bin: bool, emit_man: bool) void {
+const SharedBuildOptions = struct {
+    target: Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    no_bin: bool,
+    emit_man: bool,
+};
+
+fn buildC(b: *Build, name: []const u8, options: SharedBuildOptions, srcs: []const []const u8, cflags: []const []const u8) void {
     const module = b.createModule(.{
-        .target = target,
-        .optimize = optimize,
+        .target = options.target,
+        .optimize = options.optimize,
         .link_libc = true,
     });
     module.addCSourceFiles(.{
@@ -50,15 +57,15 @@ fn buildC(b: *Build, srcs: anytype, target: Build.ResolvedTarget, optimize: std.
         .name = name,
         .root_module = module,
     });
-    if (!no_bin) addBuildSteps(b, name, exe);
-    if (emit_man) buildManPage(b, exe);
+    if (!options.no_bin) addBuildSteps(b, name, exe);
+    if (options.emit_man) buildManPage(b, exe);
 }
 
-fn buildZig(b: *Build, main: Build.LazyPath, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, imports: []const Build.Module.Import, no_bin: bool, emit_man: bool) void {
+fn buildZig(b: *Build, name: []const u8, options: SharedBuildOptions, main: Build.LazyPath, imports: []const Build.Module.Import) void {
     const module = b.createModule(.{
         .root_source_file = main,
-        .target = target,
-        .optimize = optimize,
+        .target = options.target,
+        .optimize = options.optimize,
         .link_libc = true,
         .imports = imports,
     });
@@ -66,8 +73,8 @@ fn buildZig(b: *Build, main: Build.LazyPath, target: Build.ResolvedTarget, optim
         .name = name,
         .root_module = module,
     });
-    if (!no_bin) addBuildSteps(b, name, exe);
-    if (emit_man) buildManPage(b, exe);
+    if (!options.no_bin) addBuildSteps(b, name, exe);
+    if (options.emit_man) buildManPage(b, exe);
 }
 
 pub fn build(b: *Build) !void {
@@ -86,7 +93,6 @@ pub fn build(b: *Build) !void {
     } });
     const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseFast });
 
-    // Arguments
     const no_bin = b.option(bool, "no-bin", "Don't emit binaries") orelse false;
     const emit_man = b.option(bool, "emit-man-pages", "Generate man pages using GNU `help2man`") orelse false;
 
@@ -95,6 +101,13 @@ pub fn build(b: *Build) !void {
     if (emit_man and target_os != current_os) {
         return error.Unsupported;
     }
+
+    const options: SharedBuildOptions = .{
+        .target = target,
+        .optimize = optimize,
+        .no_bin = no_bin,
+        .emit_man = emit_man,
+    };
 
     // Global
     const fmt_step = b.step("fmt", "Format all zig code");
@@ -156,21 +169,21 @@ pub fn build(b: *Build) !void {
 
     // LSF
     const lsf_src_files = [_][]const u8{ "src/ls/main.c", "src/stat/do_stat.c", "src/ctypes/strbuild.c", "src/ctypes/table.c" };
-    buildC(b, &lsf_src_files, target, optimize, "lsf", @constCast(&cflags), no_bin, emit_man);
+    buildC(b, "lsf", options, &lsf_src_files, &cflags);
 
     // STATF
     const statf_src_files = [_][]const u8{ "src/stat/main.c", "src/stat/do_stat.c", "src/ctypes/strbuild.c" };
-    buildC(b, &statf_src_files, target, optimize, "statf", @constCast(&cflags), no_bin, emit_man);
+    buildC(b, "statf", options, &statf_src_files, &cflags);
 
     // TOUCHF
     const touchf_src_files = [_][]const u8{ "src/touch/main.c", "src/ctypes/table.c" };
-    buildC(b, &touchf_src_files, target, optimize, "touchf", @constCast(&cflags), no_bin, emit_man);
+    buildC(b, "touchf", options, &touchf_src_files, &cflags);
 
     // MVF
     const mvf_main = b.path("src/file-io/mv/main.zig");
-    buildZig(b, mvf_main, target, optimize, "mvf", imports, no_bin, emit_man);
+    buildZig(b, "mvf", options, mvf_main, imports);
 
     // CPF
     const cpf_main = b.path("src/file-io/cp/main.zig");
-    buildZig(b, cpf_main, target, optimize, "cpf", imports, no_bin, false);
+    buildZig(b, "cpf", options, cpf_main, imports);
 }
