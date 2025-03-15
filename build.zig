@@ -128,7 +128,7 @@ pub fn build(b: *Build) !void {
     // LSF
     const lsf_src_files = [_][]const u8{ "src/ls/main.c", "src/stat/do_stat.c", "src/ctypes/strbuild.c", "src/ctypes/table.c" };
     const lsf = buildC(b, &lsf_src_files, target, optimize, "lsf", @constCast(&cflags), no_bin);
-    
+
     // STATF
     const statf_src_files = [_][]const u8{ "src/stat/main.c", "src/stat/do_stat.c", "src/ctypes/strbuild.c" };
     const statf = buildC(b, &statf_src_files, target, optimize, "statf", @constCast(&cflags), no_bin);

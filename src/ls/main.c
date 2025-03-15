@@ -425,7 +425,7 @@ int main(int argc, char** argv) {
 			continue;
 		} else if (!S_ISDIR(st.st_mode)) {
 			// FIXME: why tf does this print? //
-			puts("Currently using lsf on files does nothing. It is planned in the futre to call to `cat`");
+			puts("Currently using lsf on files does nothing. It is planned in the future to call to `cat`");
 			// TODO: call to cat, bat, or catf.... auctually... //
 			// side rant: I don't know if Cu-Fied will implement cat or cd //
 			// for cat, bat is already REALLY good, and for cd zoxide works wonders.. //
