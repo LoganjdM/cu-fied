@@ -173,8 +173,8 @@ file_t* query_files(const char* path, uint8_t* longest_fname, size_t* largest_fs
 			size_t dir_conts_size = 0, junk1 = 0;
 			uint8_t junk0 = 0;
 			// prevent endless recursion caused by forever checking "./.", '\000' <repeats 254 times> //
-			// FIXME: this is very fucking slow, infact, this ENTIRE function should be rewritten to use fts(3), as that would be quicker than stat'ing and usind dirent. //
-			// FIXME: infact, I havn't checked ls src code in a bit, but I wonder if they even do recursion on --recursive or just us fts. //
+			// FIXME: this is very fucking slow, infact, this ENTIRE function should be rewritten to use fts(3), as that would be quicker than stat'ing and using dirent. //
+			// FIXME: infact, I have not checked ls src code in a bit, but I wonder if they even do recursion on --recursive or just us fts. //
 			if (strcmp(dp->d_name, ".") && strcmp(dp->d_name, "..")) {
 				free(query_files(true_path, &junk0, &dir_conts_size, &junk1, args, recurse + 1));
 				errno = 0; // < this sucks, essentially throws awaay whatever error we had //
@@ -374,7 +374,7 @@ int main(int argc, char** argv) {
 	uint32_t operand_count = 0;
 	const args_t args = parse_argv(argc, argv, &operand_count);
 	#ifndef NDEBUG
-	// https://www.open-std.org/jtc1/sc22/wg14/www/docs/n3047.pdf, _BitInt is converted to corresponding bit percision, so int is fully representable here //
+	// https://www.open-std.org/jtc1/sc22/wg14/www/docs/n3047.pdf, _BitInt is converted to corresponding bit precision, so int is fully representable here //
 	printf("args: %b\noperands: %i\n", (int)args, operand_count);
 	#endif
 
