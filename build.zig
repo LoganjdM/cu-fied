@@ -16,7 +16,7 @@ fn addBuildSteps(b: *Build, name: []const u8, exe: *Compile) void {
     );
     run.dependOn(&run_exe.step);
 }
-fn buildC(b: *Build, srcs: anytype, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, cflags: []const []const u8, no_bin: bool) *Compile {
+fn buildC(b: *Build, srcs: []const []const u8, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, cflags: []const []const u8, no_bin: bool) *Compile {
     const module = b.createModule(.{
         .target = target,
         .optimize = optimize,
@@ -128,6 +128,10 @@ pub fn build(b: *Build) !void {
     // LSF
     const lsf_src_files = [_][]const u8{ "src/ls/main.c", "src/ctypes/strbuild.c", "src/ctypes/table.c" };
     const lsf = buildC(b, &lsf_src_files, target, optimize, "lsf", @constCast(&cflags), no_bin);
+    
+    // STATF
+    const statf_src_files = [_][]const u8{ "src/stat/main.c", "src/stat/do_stat.c", "src/ctypes/strbuild.c" };
+    const statf = buildC(b, &statf_src_files, target, optimize, "statf", @constCast(&cflags), no_bin);
 
     // TOUCHF
     const touchf_src_files = [_][]const u8{ "src/touch/main.c", "src/ctypes/table.c" };
@@ -144,7 +148,7 @@ pub fn build(b: *Build) !void {
     // generate man pages //
     const help2man = b.step("help2man", "Use GNU `help2man` to generate man pages.");
 
-    const clis = [_]*Compile{ lsf, mvf, touchf };
+    const clis = [_]*Compile{ lsf, mvf, touchf, statf };
 
     for (clis) |cli| {
         const tool_run = b.addSystemCommand(&.{"help2man"});
