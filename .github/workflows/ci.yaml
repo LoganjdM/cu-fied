@@ -22,7 +22,7 @@ permissions: {}
 jobs:
   build:
     name: Build
-    timeout-minutes: ${{ (matrix.target == 'web') && 5 || 10 }}
+    timeout-minutes: 10
     runs-on: ubuntu-latest
 
     permissions:
@@ -47,8 +47,10 @@ jobs:
         uses: mlugg/setup-zig@a67e68dc5c8281d9608136d3d7ca1b282213e4ac # v1.2.1
         with:
           version: 0.14.0
+      - name: 📦 Install dependencies
+        run: sudo apt-get install -y help2man
       - name: 🔧 Build
-        run: zig build -Dtarget=${{ matrix.target }}
+        run: zig build -Dtarget=${{ matrix.target }} ${{ matrix.target == 'x86_64-linux-gnu' && '-Demit-man-pages' || '' }}
       - name: ✨ Verify formatting
         run: zig build check-fmt
 

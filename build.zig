@@ -94,6 +94,12 @@ pub fn build(b: *Build) !void {
             else => return err,
         });
 
+    const target_os = builtin.target.os.tag;
+    const current_os = builtin.os.tag;
+    if (emit_man and target_os != current_os) {
+        return error.Unsupported;
+    }
+
     // Global
     const fmt_step = b.step("fmt", "Format all zig code");
     const check_fmt_step = b.step("check-fmt", "Check formatting of all zig code");
