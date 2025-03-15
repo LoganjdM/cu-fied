@@ -6,6 +6,10 @@ const Step = Build.Step;
 fn addBuildSteps(b: *Build, name: []const u8, exe: *Step.Compile) void {
     b.installArtifact(exe);
 
+    if (exe.rootModuleTarget().os.tag != b.graph.host.result.os.tag) {
+        return;
+    }
+
     const run_exe = b.addRunArtifact(exe);
     if (b.args) |args| run_exe.addArgs(args);
 
@@ -84,17 +88,9 @@ pub fn build(b: *Build) !void {
 
     // Arguments
     const no_bin = b.option(bool, "no-emit-bin", "Don't emit binaries") orelse false;
-    const emit_man = b.option(bool, "emit-man-pages", "Generate man pages using GNU `help2man`") orelse
-        (b.release_mode != .off) and
-        (if (b.findProgram(
-            &[_][]const u8{"help2man"},
-            &[_][]const u8{},
-        )) |_| true else |err| switch (err) {
-            error.FileNotFound => false,
-            else => return err,
-        });
+    const emit_man = b.option(bool, "emit-man-pages", "Generate man pages using GNU `help2man`") orelse false;
 
-    const target_os = builtin.target.os.tag;
+    const target_os = target.result.os.tag;
     const current_os = builtin.os.tag;
     if (emit_man and target_os != current_os) {
         return error.Unsupported;
