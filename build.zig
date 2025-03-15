@@ -87,7 +87,7 @@ pub fn build(b: *Build) !void {
     const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseFast });
 
     // Arguments
-    const no_bin = b.option(bool, "no-emit-bin", "Don't emit binaries") orelse false;
+    const no_bin = b.option(bool, "no-bin", "Don't emit binaries") orelse false;
     const emit_man = b.option(bool, "emit-man-pages", "Generate man pages using GNU `help2man`") orelse false;
 
     const target_os = target.result.os.tag;
