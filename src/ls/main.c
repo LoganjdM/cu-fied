@@ -412,7 +412,7 @@ int main(int argc, char** argv) {
 	}
 
 	uint8_t ret_code = 0;
-	for(int i=0; i<argc; ++i) {
+	for(int i=1; i<argc; ++i) {
 		#define OPERAND argv[i]
 		if (!operand_count) break;
 		else if (OPERAND[0] == '-') continue;
