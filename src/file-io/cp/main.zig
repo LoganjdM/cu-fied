@@ -1,9 +1,12 @@
 const std = @import("std");
+const assert = std.debug.assert;
 const log = std.log;
 const mem = std.mem;
 const Allocator = mem.Allocator;
 const fs = std.fs;
 const File = fs.File;
+const builtin = @import("builtin");
+const native_os = builtin.os.tag;
 const color = @import("colors");
 const file_io = @import("file_io");
 const options = @import("options");
@@ -69,18 +72,25 @@ fn getLongestOperand(files: [][*:0]u8) u64 {
 }
 
 pub fn main() u8 {
-    var gpa: std.heap.DebugAllocator(.{}) = .init;
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+    var debug_allocator: std.heap.DebugAllocator(.{}) = comptime .init;
+
+    const gpa, const is_debug = gpa: {
+        if (native_os == .wasi) break :gpa .{ std.heap.wasm_allocator, false };
+        break :gpa switch (builtin.mode) {
+            .Debug, .ReleaseSafe => .{ debug_allocator.allocator(), true },
+            .ReleaseFast, .ReleaseSmall => .{ std.heap.smp_allocator, false },
+        };
+    };
+    defer if (is_debug) assert(debug_allocator.deinit() == .ok);
 
     const stderr = std.io.getStdErr();
     const stdout = std.io.getStdOut();
     const stdout_writer = stdout.writer();
 
     var files = std.ArrayListUnmanaged([*:0]u8){};
-    defer files.deinit(allocator);
+    defer files.deinit(gpa);
 
-    const args = parseArgs(std.os.argv, allocator, &stdout_writer, &files) catch |err| {
+    const args = parseArgs(std.os.argv, gpa, &stdout_writer, &files) catch |err| {
         if (err == error.InvalidArgument) {
             const msg = if (files.items.len == 0) "Missing file arguments!" else "Missing destination file argument!";
             color.print(stderr, color.red, "{s}\n", .{msg});
@@ -96,11 +106,11 @@ pub fn main() u8 {
         log.debug("\t{s}\n", .{file});
     }
 
-    const dest: []u8 = allocator.dupe(u8, std.mem.span(files.pop().?)) catch {
+    const dest: []u8 = gpa.dupe(u8, std.mem.span(files.pop().?)) catch {
         color.print(stderr, color.red, "Failed to allocate memory for destination file argument!\n", .{});
         return 1;
     };
-    defer allocator.free(dest);
+    defer gpa.free(dest);
 
     // verbose padding //
     // kinda ugly vars //
@@ -109,24 +119,24 @@ pub fn main() u8 {
     var verbose_padding_char: [*c]u8 = undefined;
     if (args.verbose) {
         verbose_longest_operand = getLongestOperand(files.items);
-        verbose_zig_padding_char = allocator.alloc(u8, verbose_longest_operand) catch {
+        verbose_zig_padding_char = gpa.alloc(u8, verbose_longest_operand) catch {
             color.print(stderr, color.red, "Failed to allocate memory for verbose padding char!\n", .{});
             return 1;
         };
         @memset(verbose_zig_padding_char, '-');
         verbose_padding_char = @ptrCast(verbose_zig_padding_char);
     }
-    defer if (args.verbose) allocator.free(verbose_zig_padding_char);
+    defer if (args.verbose) gpa.free(verbose_zig_padding_char);
 
     var dot_count: u8 = 0;
     for (files.items) |file_slice| {
         // these *:0 are really annoying so do it the c way of looking for \0 //
-        const file: []u8 = allocator.alloc(u8, std.mem.len(file_slice)) catch {
+        const file: []u8 = gpa.alloc(u8, std.mem.len(file_slice)) catch {
             color.print(stderr, color.red, "Failed to allocate memory for source file argument!\n", .{});
             continue;
         };
         @memcpy(file, file_slice);
-        defer allocator.free(file);
+        defer gpa.free(file);
 
         if (args.verbose) {
             if (dot_count < 3) dot_count += 1 else dot_count -= 2;

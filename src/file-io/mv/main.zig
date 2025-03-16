@@ -1,10 +1,12 @@
 const std = @import("std");
+const assert = std.debug.assert;
 const mem = std.mem;
 const Allocator = mem.Allocator;
-const file_io = @import("file_io");
-const assert = std.debug.assert;
 const ArgIterator = std.process.ArgIterator;
+const builtin = @import("builtin");
+const native_os = builtin.os.tag;
 const options = @import("options");
+const file_io = @import("file_io");
 
 const Params = struct {
     help: bool = false,
@@ -96,15 +98,22 @@ fn move(allocator: Allocator, args: Params) error{ OutOfMemory, OperationError }
 }
 
 pub fn main() !u8 {
-    var gpa: std.heap.DebugAllocator(.{}) = .init;
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+    var debug_allocator: std.heap.DebugAllocator(.{}) = comptime .init;
 
-    var args_iter = try std.process.ArgIterator.initWithAllocator(allocator);
+    const gpa, const is_debug = gpa: {
+        if (native_os == .wasi) break :gpa .{ std.heap.wasm_allocator, false };
+        break :gpa switch (builtin.mode) {
+            .Debug, .ReleaseSafe => .{ debug_allocator.allocator(), true },
+            .ReleaseFast, .ReleaseSmall => .{ std.heap.smp_allocator, false },
+        };
+    };
+    defer if (is_debug) assert(debug_allocator.deinit() == .ok);
+
+    var args_iter = try std.process.ArgIterator.initWithAllocator(gpa);
     defer args_iter.deinit();
 
     _ = args_iter.next();
-    const args = try parseArgs(&args_iter, allocator);
+    const args = try parseArgs(&args_iter, gpa);
 
     if (args.help) {
         try std.io.getStdOut().writer().print(@embedFile("help.txt"), .{});
@@ -124,7 +133,7 @@ pub fn main() !u8 {
     assert(args.sources != null);
     assert(args.destination != null);
 
-    try move(allocator, args);
+    try move(gpa, args);
 
     return 0;
 }
