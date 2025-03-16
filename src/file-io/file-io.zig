@@ -92,5 +92,8 @@ pub fn printfOperation(dot_count: *u8, src: []const u8, dest: []const u8, paddin
     if (dot_count.* < 3) dot_count.* += 1 else dot_count.* -= 2;
 
     // printf may as well be its own programming language kek //
-    _ = std.c.printf("\"%s\" %.*s--[%s]--> \"%s\"%.*s\n", zigStrToCStr(src), padding_vars.len - src.len, padding_vars.str, zigStrToCStr(operation), zigStrToCStr(dest), dot_count.*, "...");
+    _ = std.c.printf(
+        \\ "%s" %.*s--[%s]--> "%s"%.*s
+        \\
+    , zigStrToCStr(src), padding_vars.len - src.len, padding_vars.str, zigStrToCStr(operation), zigStrToCStr(dest), dot_count.*, "...");
 }
