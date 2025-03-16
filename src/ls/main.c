@@ -42,6 +42,7 @@ typedef u(9) args_t;
 // bool //
 #define ARG_RECURSIVE    0b100000000
 
+// TODO: I want to abstract this argument parsing into a function that every program can use //
 #define IS_ARG(arg, str_short, str_long) (!strcmp(arg, str_short) || !strcmp(arg, str_long))
 args_t parse_argv(const int argc, char** argv, uint32_t* operant_count) {
 	assert(operant_count);
@@ -53,19 +54,19 @@ args_t parse_argv(const int argc, char** argv, uint32_t* operant_count) {
 			continue;
 		}
 
-		if (IS_ARG(ARG, "-a", "--all"))
+		if (!strcmp(ARG, "--all"))
 			result |= ARG_DOT_FILES | ARG_DOT_DIRS;
-		else if (IS_ARG(ARG, "-A", "--almost-all"))
+		else if (!strcmp(ARG, "--almost-all"))
 			result |= ARG_DOT_FILES;
-		else if (IS_ARG(ARG, "-d", "--dot-dirs"))
+		else if (!strcmp(ARG, "--dot-dirs"))
 			result |= ARG_DOT_DIRS;
-		else if (IS_ARG(ARG, "-f", "--no-nerdfonts"))
+		else if (!strcmp(ARG, "--no-nerdfonts"))
 			result |= ARG_NO_NERDFONTS;
-		else if (IS_ARG(ARG, "-c", "--dir-contents"))
+		else if (!strcmp(ARG, "--dir-contents"))
 			result |= ARG_DIR_CONTS;
-		else if (IS_ARG(ARG, "-U", "--unsorted"))
+		else if (!strcmp(ARG, "--unsorted"))
 			result |= ARG_UNSORTED;
-		else if (IS_ARG(ARG, "-s", "--stat"))
+		else if (!strcmp(ARG, "--stat"))
 			result |= ARG_STAT;
 		else if (!strcmp(ARG, "--force-color"))
 			force_color = true;
@@ -91,6 +92,7 @@ args_t parse_argv(const int argc, char** argv, uint32_t* operant_count) {
 			}
 		} else if (IS_ARG(ARG, "-h", "--help")) {
 			#ifdef __has_embed
+			result |= ARG_DIR_CONTS;
 			const char help[] = {
 			#	embed "help.txt"
 				, '\0'};
@@ -112,7 +114,28 @@ args_t parse_argv(const int argc, char** argv, uint32_t* operant_count) {
 				continue;
 			}
 
-			printf_color(stderr, YELLOW, "\"%s\" is not a valid argument!\n", ARG);
+			size_t arg_len = strlen(ARG);
+			for (size_t j=1; j<arg_len; ++j) {
+				 switch (ARG[j]) {
+				 	case 'a':
+						result |= ARG_DOT_FILES | ARG_DOT_DIRS; continue;
+					case 'A':
+						result |= ARG_DOT_FILES; continue;
+					case 'd':
+						result |= ARG_DOT_DIRS; continue;
+					case 'f':
+						result |= ARG_NO_NERDFONTS; continue;
+					case 'c':
+						result |= ARG_DIR_CONTS; continue;
+					case 'U':
+						result |= ARG_UNSORTED; continue;
+					case 's':
+						result |= ARG_STAT; continue;
+					default: break;
+				 } break;
+				printf_color(stderr, YELLOW, "\"%s\" is not a valid argument!\n", ARG);
+			}
+
 		}
 		#undef ARG
 	} return result;
@@ -223,7 +246,7 @@ float get_simplified_file_size(const size_t f_size, char* unit, args_t args) {
 	// i spent like 30 minutes figuring that equation out
 	u(2) hr_arg = HR_ARG(args);
 	if (hr_arg == 3) return (float)f_size / pow(10, exponent);
-	else (float)f_size * ( pow(2 * exponent, 10) ); // TODO: base2 math would make this faster and be more accurate //
+	else return (float)f_size * ( pow(2 * exponent, 10) ); // TODO: base2 math would make this faster and be more accurate //
 }
 
 size_t get_longest_fdescriptor(const uint8_t longest_fname, const size_t largest_fsize, const args_t args) {
@@ -254,23 +277,25 @@ size_t get_longest_fdescriptor(const uint8_t longest_fname, const size_t largest
 	return result;
 }
 
-const char* get_descriptor_color(file_t f_info, table_t* f_ext_map) {
+const char* get_descriptor_color(file_t f_info, table_t* f_ext_map, args_t args) {
 	if(f_info.stat & S_IFDIR) return get_escape_code(STDOUT_FILENO, BLUE);
 	else if(f_info.stat & S_IXUSR) return get_escape_code(STDOUT_FILENO, GREEN);
 
-	char* is_media = NULL; char* extension = NULL;
-	char* tok = strtok(f_info.name, ".");
-	while(tok) {
-		extension = tok;
-		tok = strtok(NULL, ".");
-	} if(!(is_media=f_ext_map->get(f_ext_map, extension).p)) return "\0";
+	if (!(args & ARG_NO_NERDFONTS)) {
+		char* is_media = NULL; char* extension = NULL;
+		char* tok = strtok(f_info.name, ".");
+		while(tok) {
+			extension = tok;
+			tok = strtok(NULL, ".");
+		} if(!(is_media=f_ext_map->get(f_ext_map, extension).p)) return "\0";
 
-	// TODO: prob could do some boolean math here instead of 78352957 237y89523 if statements //
-	if(!strcmp(is_media, "󰈟 ")) return get_escape_code(STDOUT_FILENO, YELLOW);
-	else if(!strcmp(is_media, "󰵸 ")) return get_escape_code(STDOUT_FILENO, YELLOW);
-	else if(!strcmp(is_media, "󰜡 ")) return get_escape_code(STDOUT_FILENO, YELLOW);
-	else if(!strcmp(is_media, "󰈫 ")) return get_escape_code(STDOUT_FILENO, YELLOW);
-	else if(!strcmp(is_media, "󰈫 ")) return get_escape_code(STDOUT_FILENO, YELLOW);
+		// TODO: prob could do some boolean math here instead of 78352957 237y89523 if statements //
+		if(!strcmp(is_media, "󰈟 ")) return get_escape_code(STDOUT_FILENO, YELLOW);
+		else if(!strcmp(is_media, "󰵸 ")) return get_escape_code(STDOUT_FILENO, YELLOW);
+		else if(!strcmp(is_media, "󰜡 ")) return get_escape_code(STDOUT_FILENO, YELLOW);
+		else if(!strcmp(is_media, "󰈫 ")) return get_escape_code(STDOUT_FILENO, YELLOW);
+		else if(!strcmp(is_media, "󰈫 ")) return get_escape_code(STDOUT_FILENO, YELLOW);
+	}
 
 	if(f_info.stat & S_IFREG) return "\0";
 	else return get_escape_code(STDOUT_FILENO, CYAN); // must be symlink //
@@ -301,7 +326,7 @@ bool list_files(const file_t* files,
 				table_t* f_ext_map, 
 				bool (*condition)(mode_t),
 				args_t args) {
-	assert(f_ext_map);
+	assert(f_ext_map || (args & ARG_NO_NERDFONTS ));
 
 	static size_t files_printed = 0;
 	for (size_t i=0; i<f_count; ++i) {
@@ -315,7 +340,7 @@ bool list_files(const file_t* files,
 		strbuild_t sb = sb_new();
 		size_t descriptor_len = 0;
 		
-		sb_append(&sb, get_descriptor_color(FILE, f_ext_map));
+		sb_append(&sb, get_descriptor_color(FILE, f_ext_map, args));
 		descriptor_len += sb_append(&sb, get_nerdfont_icon(FILE, f_ext_map, args));
 		sb_append(&sb, get_escape_code(STDOUT_FILENO, BOLD));
 
