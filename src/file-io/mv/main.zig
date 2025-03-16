@@ -4,6 +4,7 @@ const Allocator = mem.Allocator;
 const file_io = @import("file_io");
 const assert = std.debug.assert;
 const ArgIterator = std.process.ArgIterator;
+const options = @import("options");
 
 const Params = struct {
     help: bool = false,
@@ -118,7 +119,7 @@ pub fn main() !u8 {
         try std.io.getStdOut().writer().print(
             \\mvf version {s}
             \\
-        , .{"0.0.0"});
+        , .{options.version});
 
         return 0;
     }

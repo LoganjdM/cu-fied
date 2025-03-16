@@ -78,6 +78,7 @@ fn buildZig(b: *Build, name: []const u8, options: SharedBuildOptions, main: Buil
 }
 
 pub fn build(b: *Build) !void {
+    // General options
     const cflags = [_][]const u8{
         "-std=c23",
         if (b.release_mode == .off) "-g" else "",
@@ -87,7 +88,6 @@ pub fn build(b: *Build) !void {
         "-DC23",
     };
 
-    // General options
     const target = b.standardTargetOptions(.{ .default_target = .{
         .abi = if (builtin.target.os.tag == .linux) .gnu else null,
     } });
@@ -101,6 +101,12 @@ pub fn build(b: *Build) !void {
     if (emit_man and target_os != current_os) {
         return error.Unsupported;
     }
+
+    // TODO: grab `.version` in build.zig.zon (if it can be done 0.15.0, ziglang/zig#22775).
+    const version = "0.0.0";
+
+    const injectedOptions = b.addOptions();
+    injectedOptions.addOption([]const u8, "version", version);
 
     const options: SharedBuildOptions = .{
         .target = target,
@@ -147,6 +153,7 @@ pub fn build(b: *Build) !void {
     });
 
     const imports: []const Build.Module.Import = &.{
+        .{ .name = "options", .module = injectedOptions.createModule() },
         .{ .name = "colors", .module = colors_module },
         .{ .name = "file_io", .module = file_io_module },
     };
@@ -157,10 +164,7 @@ pub fn build(b: *Build) !void {
         \\// This is a [Semantic Version](https://semver.org/)
         \\#define __CU_FIED_VERSION__ "{s}"
         \\
-    , .{
-        // TODO: grab `.version` in build.zig.zon (if it can be done 0.15.0, ziglang/zig#22775).
-        "0.0.0",
-    }));
+    , .{version}));
 
     const write_info = b.addUpdateSourceFiles();
     write_info.addCopyFileToSource(info_file, "src/app_info.h");

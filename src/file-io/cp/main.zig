@@ -6,6 +6,7 @@ const fs = std.fs;
 const File = fs.File;
 const color = @import("colors");
 const file_io = @import("file_io");
+const options = @import("options");
 
 const Params = packed struct {
     recursive: bool = false,
@@ -19,7 +20,7 @@ fn isArg(arg: [*:0]const u8, comptime short: []const u8, comptime long: []const 
     return std.mem.eql(u8, arg[0..short.len], short) or std.mem.eql(u8, arg[0..long.len], long);
 }
 
-fn parseArgs(argv: [][*:0]u8, allocator: Allocator, stdout: *const File.Writer, files: *std.ArrayListAlignedUnmanaged([*:0]u8, null)) (error{ OutOfMemory, InvalidArgument } || File.WriteError)!Params {
+fn parseArgs(argv: [][*:0]u8, allocator: Allocator, stdout: *const File.Writer, files: *std.ArrayListUnmanaged([*:0]u8)) (error{ OutOfMemory, InvalidArgument } || File.WriteError)!Params {
     var args: Params = .{};
 
     for (argv, 0..) |arg, i| {
@@ -42,13 +43,13 @@ fn parseArgs(argv: [][*:0]u8, allocator: Allocator, stdout: *const File.Writer, 
             args.verbose = true;
         } else if (isArg(arg, "-h", "--help")) {
             const help_message = @embedFile("help.txt");
-            nosuspend stdout.print(help_message, .{}) catch continue;
+            try stdout.print(help_message, .{});
             std.process.exit(0);
         } else if (isArg(arg, "--version", "--version")) {
             try stdout.print(
                 \\cpf version {s}
                 \\
-            , .{"0.0.0"});
+            , .{options.version});
 
             std.process.exit(0);
         }
@@ -119,13 +120,11 @@ pub fn main() u8 {
         @memset(verbose_zig_padding_char, '-');
         verbose_padding_char = @ptrCast(verbose_zig_padding_char);
     }
-    defer {
-        if (args.verbose) allocator.free(verbose_zig_padding_char);
-    }
+    defer if (args.verbose) allocator.free(verbose_zig_padding_char);
 
     var dot_count: u8 = 0;
     for (files.items) |file_slice| {
-        // these *:0 are really fucking annoying so do it the c way of looking for \0 //
+        // these *:0 are really annoying so do it the c way of looking for \0 //
         const file: []u8 = allocator.alloc(u8, std.mem.len(file_slice)) catch {
             color.print(stderr, color.red, "Failed to allocate memory for source file argument!\n", .{});
             continue;
