@@ -1,7 +1,9 @@
 const std = @import("std");
-const builtin = @import("builtin");
 const Build = std.Build;
+const LazyPath = Build.LazyPath;
+const Module = Build.Module;
 const Step = Build.Step;
+const builtin = @import("builtin");
 
 fn addBuildSteps(b: *Build, name: []const u8, exe: *Step.Compile) void {
     b.installArtifact(exe);
@@ -41,7 +43,16 @@ const SharedBuildOptions = struct {
     emit_man: bool,
 };
 
-fn buildC(b: *Build, name: []const u8, options: SharedBuildOptions, srcs: []const []const u8, cflags: []const []const u8) void {
+fn buildCli(b: *Build, name: []const u8, root_module: *Module, options: *const SharedBuildOptions) void {
+    const exe = b.addExecutable(.{
+        .name = name,
+        .root_module = root_module,
+    });
+    if (!options.no_bin) addBuildSteps(b, name, exe);
+    if (options.emit_man) buildManPage(b, exe);
+}
+
+fn buildCModule(b: *Build, options: *const SharedBuildOptions, srcs: []const []const u8, cflags: []const []const u8) *Module {
     const module = b.createModule(.{
         .target = options.target,
         .optimize = options.optimize,
@@ -53,15 +64,10 @@ fn buildC(b: *Build, name: []const u8, options: SharedBuildOptions, srcs: []cons
     });
     module.addIncludePath(b.path("src/ctypes"));
 
-    const exe = b.addExecutable(.{
-        .name = name,
-        .root_module = module,
-    });
-    if (!options.no_bin) addBuildSteps(b, name, exe);
-    if (options.emit_man) buildManPage(b, exe);
+    return module;
 }
 
-fn buildZig(b: *Build, name: []const u8, options: SharedBuildOptions, main: Build.LazyPath, imports: []const Build.Module.Import) void {
+fn buildZigModule(b: *Build, options: *const SharedBuildOptions, main: LazyPath, imports: []const Module.Import) *Module {
     const module = b.createModule(.{
         .root_source_file = main,
         .target = options.target,
@@ -69,12 +75,8 @@ fn buildZig(b: *Build, name: []const u8, options: SharedBuildOptions, main: Buil
         .link_libc = true,
         .imports = imports,
     });
-    const exe = b.addExecutable(.{
-        .name = name,
-        .root_module = module,
-    });
-    if (!options.no_bin) addBuildSteps(b, name, exe);
-    if (options.emit_man) buildManPage(b, exe);
+
+    return module;
 }
 
 pub fn build(b: *Build) !void {
@@ -152,7 +154,7 @@ pub fn build(b: *Build) !void {
         },
     });
 
-    const imports: []const Build.Module.Import = &.{
+    const imports: []const Module.Import = &.{
         .{ .name = "options", .module = injectedOptions.createModule() },
         .{ .name = "colors", .module = colors_module },
         .{ .name = "file_io", .module = file_io_module },
@@ -173,21 +175,26 @@ pub fn build(b: *Build) !void {
 
     // LSF
     const lsf_src_files = [_][]const u8{ "src/ls/main.c", "src/stat/do_stat.c", "src/ctypes/strbuild.c", "src/ctypes/table.c" };
-    buildC(b, "lsf", options, &lsf_src_files, &cflags);
+    const lsf = buildCModule(b, &options, &lsf_src_files, &cflags);
+    buildCli(b, "lsf", lsf, &options);
 
     // STATF
     const statf_src_files = [_][]const u8{ "src/stat/main.c", "src/stat/do_stat.c", "src/ctypes/strbuild.c" };
-    buildC(b, "statf", options, &statf_src_files, &cflags);
+    const statf = buildCModule(b, &options, &statf_src_files, &cflags);
+    buildCli(b, "statf", statf, &options);
 
     // TOUCHF
     const touchf_src_files = [_][]const u8{ "src/touch/main.c", "src/ctypes/table.c" };
-    buildC(b, "touchf", options, &touchf_src_files, &cflags);
+    const touchf = buildCModule(b, &options, &touchf_src_files, &cflags);
+    buildCli(b, "touchf", touchf, &options);
 
     // MVF
     const mvf_main = b.path("src/file-io/mv/main.zig");
-    buildZig(b, "mvf", options, mvf_main, imports);
+    const mvf = buildZigModule(b, &options, mvf_main, imports);
+    buildCli(b, "mvf", mvf, &options);
 
     // CPF
     const cpf_main = b.path("src/file-io/cp/main.zig");
-    buildZig(b, "cpf", options, cpf_main, imports);
+    const cpf = buildZigModule(b, &options, cpf_main, imports);
+    buildCli(b, "cpf", cpf, &options);
 }
