@@ -1,11 +1,11 @@
 const std = @import("std");
 const log = std.log;
-const stdout = std.io.getStdOut();
-const stderr = std.io.getStdErr();
+const mem = std.mem;
+const Allocator = mem.Allocator;
+const fs = std.fs;
+const File = fs.File;
 const color = @import("colors");
 const file_io = @import("file_io");
-const fs = std.fs;
-// const zon = @import("../../../build.zig.zon"); // how get .version tag on `build.zig.zon`?
 
 const Params = packed struct {
     recursive: bool = false,
@@ -19,14 +19,14 @@ fn isArg(arg: [*:0]const u8, comptime short: []const u8, comptime long: []const 
     return std.mem.eql(u8, arg[0..short.len], short) or std.mem.eql(u8, arg[0..long.len], long);
 }
 
-fn parseArgs(argv: [][*:0]u8, files: *std.ArrayListAligned([*:0]u8, null)) error{ OutOfMemory, InvalidArgument }!Params {
+fn parseArgs(argv: [][*:0]u8, allocator: Allocator, stdout: *const File.Writer, files: *std.ArrayListAlignedUnmanaged([*:0]u8, null)) (error{ OutOfMemory, InvalidArgument } || File.WriteError)!Params {
     var args: Params = .{};
 
     for (argv, 0..) |arg, i| {
         if (i == 0) continue; // skip exec
 
         if (arg[0] != '-') {
-            try files.append(arg);
+            try files.append(allocator, arg);
             continue;
         }
 
@@ -42,10 +42,14 @@ fn parseArgs(argv: [][*:0]u8, files: *std.ArrayListAligned([*:0]u8, null)) error
             args.verbose = true;
         } else if (isArg(arg, "-h", "--help")) {
             const help_message = @embedFile("help.txt");
-            nosuspend stdout.writer().print(help_message, .{}) catch continue; // eh dont give a shi, we are closing anyways //
+            nosuspend stdout.print(help_message, .{}) catch continue;
             std.process.exit(0);
         } else if (isArg(arg, "--version", "--version")) {
-            // stdout.print("{i}", .{.version}); // how get .version tag on `build.zig.zon`?
+            try stdout.print(
+                \\cpf version {s}
+                \\
+            , .{"0.0.0"});
+
             std.process.exit(0);
         }
     }
@@ -72,10 +76,14 @@ pub fn main() u8 {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    var files = std.ArrayList([*:0]u8).init(allocator);
-    defer files.deinit();
+    const stderr = std.io.getStdErr();
+    const stdout = std.io.getStdOut();
+    const stdout_writer = stdout.writer();
 
-    const args = parseArgs(std.os.argv, &files) catch |err| {
+    var files = std.ArrayListUnmanaged([*:0]u8){};
+    defer files.deinit(allocator);
+
+    const args = parseArgs(std.os.argv, allocator, &stdout_writer, &files) catch |err| {
         if (err == error.InvalidArgument) {
             const msg = if (files.items.len == 0) "Missing file arguments!" else "Missing destination file argument!";
             color.print(stderr, color.red, "{s}\n", .{msg});
