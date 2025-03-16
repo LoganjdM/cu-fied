@@ -48,7 +48,15 @@ fn buildCli(b: *Build, name: []const u8, root_module: *Module, options: *const S
         .name = name,
         .root_module = root_module,
     });
-    if (!options.no_bin) addBuildSteps(b, name, exe);
+
+    if (options.no_bin) {
+        b.getInstallStep().dependOn(&exe.step);
+
+        return;
+    }
+
+    addBuildSteps(b, name, exe);
+
     if (options.emit_man) buildManPage(b, exe);
 }
 
