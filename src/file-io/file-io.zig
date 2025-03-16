@@ -84,7 +84,7 @@ pub fn getPaddingVars(source_files: []const []const u8, allocator: std.mem.Alloc
     };
 }
 
-fn zigStrToCStr(str: []const u8) [*c]u8 {
+pub fn zigStrToCStr(str: []const u8) [*c]u8 {
     return @ptrCast(@constCast(str));
 }
 

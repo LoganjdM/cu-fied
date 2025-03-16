@@ -15,9 +15,6 @@ const Params = struct {
     destination: ?[:0]const u8 = null,
 };
 
-fn zigStrToC(str: []const u8) [*c]u8 {
-    return @ptrCast(@constCast(str));
-}
 fn getLongestOperand(files: []const []const u8) u64 {
     var result: u64 = 0;
     for (files) |fname| {

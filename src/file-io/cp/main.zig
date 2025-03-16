@@ -68,10 +68,6 @@ fn getLongestOperand(files: [][*:0]u8) u64 {
     return result;
 }
 
-fn zigStrToC(str: []u8) [*c]u8 {
-    return @ptrCast(str);
-}
-
 pub fn main() u8 {
     var gpa: std.heap.DebugAllocator(.{}) = .init;
     defer _ = gpa.deinit();
@@ -136,7 +132,7 @@ pub fn main() u8 {
             if (dot_count < 3) dot_count += 1 else dot_count -= 2;
             const padding = (verbose_longest_operand - file.len);
             // printf may as well be its own programming language kek //
-            _ = std.c.printf("\"%s\" %.*s--[copying]--> \"%s\"%.*s\n", zigStrToC(file), padding, verbose_padding_char, zigStrToC(dest), dot_count, "...");
+            _ = std.c.printf("\"%s\" %.*s--[copying]--> \"%s\"%.*s\n", file_io.zigStrToCStr(file), padding, verbose_padding_char, file_io.zigStrToCStr(dest), dot_count, "...");
         }
 
         // GNU source looking function call //
