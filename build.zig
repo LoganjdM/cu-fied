@@ -49,7 +49,10 @@ fn buildCli(b: *Build, name: []const u8, root_module: *Module, options: *const S
         .root_module = root_module,
     });
 
-    if (options.no_bin) {
+    if (options.no_bin and
+        // Work around ziglang/zig#22682.
+        exe.root_module.link_objects.items.len == 0)
+    {
         b.getInstallStep().dependOn(&exe.step);
 
         return;
