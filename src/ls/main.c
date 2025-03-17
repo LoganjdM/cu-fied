@@ -162,6 +162,8 @@ struct files_query {
 };
 struct files_query queried_files = {NULL, 32, 0, 1};
 
+// I really don't like this fix, infact I personally think GNU's FTW_ACTIONRETVAL flag is just how libc should handle nftw(3), but I am forced to do this. this also measn I believe lsf is inherntly faster on macos //
+#ifndef __APPLE__
 int query_files(const char* path, const struct stat* st, int typeflag, struct FTW* file_desc) {
 	// sanity checks //
 	if (typeflag == FTW_NS) {
@@ -212,6 +214,60 @@ int query_files(const char* path, const struct stat* st, int typeflag, struct FT
 	++queried_files.len;
 	return FTW_CONTINUE;
 }
+#else
+// If the function pointed to by fn returns a non-zero value,
+// ftw() and nftw() will stop processing the tree and return the value from fn
+int query_files(const char* path, const struct stat* st, int typeflag, struct FTW* file_desc) {
+	// sanity checks //
+	if (typeflag == FTW_NS) {
+		// I dont think nftw() sets errno, but open() will //
+		int fd = open(path, 0);
+		if (fd != -1) close(fd);
+		assert(errno != EBADF); // EBADF shouldn't happen
+		switch (errno) {
+			case EACCES: return 0; // most likely failure //
+			case ELOOP: return 0;
+			default: return 0; // it is probably fine //
+		}
+	} else if (typeflag == FTW_SLN) {
+		errno = ELOOP;
+		return 0;
+	}
+
+	if (file_desc->level > queried_files.max_depth) return 0;
+	if (queried_files.len > queried_files.capacity || !queried_files.files) {
+		if ((queried_files.capacity << 1) < queried_files.capacity) {
+			// overflow! (I really hope zig compiler doesn't fuck with me by kill the program here) //
+			errno = EOVERFLOW;
+			return -1;
+		} queried_files.capacity <<= 1;
+		void* new_ptr = reallocarray(queried_files.files, queried_files.capacity, sizeof(file_t));
+		if (!new_ptr) return -1;
+		else queried_files.files = (file_t*)new_ptr;
+	}
+
+	char* path_copy = (char*)malloc(strlen(path) + 1);
+	if (!path_copy) return -1;
+	strcpy(path_copy, path);
+
+	// i fucking hate this eyesore so i'll explain it so no one has to decipher these ancient egyptian hyroglyphics //
+	// 1. tokenize our path copy based on / once so we get the base dir //
+	// 2. allocate the memory we need for that (and error check) //
+	// 3. copy it and free the path copy //
+	char* tok = strtok(path_copy, "/");
+	queried_files.files[queried_files.len].parent_dir = malloc(strlen(tok) + 1);
+	if (!queried_files.files[queried_files.len].parent_dir) return -1;
+	strcpy(queried_files.files[queried_files.len].parent_dir, path_copy);
+	free(path_copy);
+
+	queried_files.files[queried_files.len].name = malloc(strlen(path + file_desc->base) + 1);
+	strcpy(queried_files.files[queried_files.len].name, path + file_desc->base);
+	queried_files.files[queried_files.len].st = *st;
+	
+	++queried_files.len;
+	return 0;
+}
+#endif
 
 float get_simplified_file_size(const size_t f_size, char* unit, args_t args) {
 	assert(*unit == 0);
@@ -434,7 +490,13 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 
 	(void)args; // < TODO
 	// queried_files = {NULL, 32, 0, 1}; // this will change based on `args`
-	int nsfw = nftw(operand, &query_files, fd, FTW_ACTIONRETVAL);		
+
+	// if I understand the description of FTW_DEPTH flag correctly, we go through all of ./ first and then the subdirectories //
+	#ifndef __APPLE__
+	int nsfw = nftw(operand, &query_files, fd, FTW_ACTIONRETVAL|FTW_DEPTH);
+	#else
+	int nsfw = nftw(operand, &query_files, fd, FTW_DEPTH);
+	#endif
 	if (nsfw == -1 || errno) {
 		printf_color(stderr, RED, "Failed to allocate memory for files! ");
 		switch (errno) {
