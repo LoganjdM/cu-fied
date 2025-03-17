@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <limits.h>
 #include <assert.h>
 #include <errno.h>
 #include <stdio.h>
@@ -12,7 +13,6 @@
 #include <fcntl.h>
 // ftw was abit hard to find info online, the best you'll get is /usr/include/ftw.h header and ftw(3) manpage //
 #include <ftw.h>
-
 // this is not how to properly see if this is C23 but oh well //
 #ifndef C23
 #	include <stdbool.h>
@@ -74,6 +74,9 @@ args_t parse_argv(const int argc, char** argv, uint32_t* operant_count) {
 			result |= ARG_STAT;
 		else if (!strcmp(ARG, "--force-color"))
 			force_color = true;
+		else if (!strcmp(ARG, "--recursive")) {
+			result |= ARG_RECURSIVE;
+		}
 		else if (IS_ARG(ARG, "-hr", "--human-readable")) {
 			if (argv[i+1] == NULL) {
 				printf_color(stderr, YELLOW, "\"%s\" is missing it's specification! (assumed none, check --help next time).\n", ARG);
@@ -135,9 +138,12 @@ args_t parse_argv(const int argc, char** argv, uint32_t* operant_count) {
 						result |= ARG_UNSORTED; continue;
 					case 's':
 						result |= ARG_STAT; continue;
+					case 'R':
+						result |= ARG_RECURSIVE; continue;
 					default: break;
-				 } break;
+				 }
 				printf_color(stderr, YELLOW, "\"%s\" is not a valid argument!\n", ARG);
+				break;
 			}
 
 		}
@@ -417,7 +423,6 @@ bool condition_dontcare(mode_t stat) { (void)stat; return false; }
 
 // evil bool... aka this is for return code, so 0 on success, 1 on fail.. just inverse is all //
 bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsize tty_dimensions, const args_t args) {
-
 	int fd = open(operand, 0);
 	if (fd == -1) {
 		printf_color(stderr, YELLOW, "Could not list ");
@@ -439,8 +444,12 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 	}
 
 	(void)args; // < TODO
-	// queried_files = {NULL, 32, 0, 1}; // this will change based on `args`
-
+	if (args & ARG_RECURSIVE) {
+		queried_files.max_depth = UINT_MAX;
+		puts("Recursive file listing is not implemented yet!\n");
+		goto TODO;
+	}
+	
 	// if I understand the description of FTW_DEPTH flag correctly, we go through all of ./ first and then the subdirectories //
 	#ifndef __APPLE__
 	int nsfw = nftw(operand, &query_files, fd, FTW_ACTIONRETVAL|FTW_DEPTH);
@@ -467,6 +476,7 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 		succ = 0;
 	}
 	// free everything //
+	TODO:
 	for(size_t i=0; i<queried_files.len; ++i) {
 		free(queried_files.files[i].name);
 		free(queried_files.files[i].parent_dir);	
@@ -478,7 +488,6 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 int main(int argc, char** argv) {
 	struct winsize tty_dimensions = {0};
 	ioctl(STDOUT_FILENO, TIOCGWINSZ, &tty_dimensions);
-
 
 	uint32_t operand_count = 1;
 	const args_t args = parse_argv(argc, argv, &operand_count);
