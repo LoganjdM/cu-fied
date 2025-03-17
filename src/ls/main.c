@@ -483,10 +483,10 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 		goto TODO;
 	}
 	
-	#ifndef __APPLE__
-	int nsfw = nftw(operand, &query_files, fd, FTW_ACTIONRETVAL);
-	#else
+	#ifdef __APPLE__
 	int nsfw = nftw(operand, &query_files, fd, 0);
+	#else
+	int nsfw = nftw(operand, &query_files, fd, FTW_ACTIONRETVAL);
 	#endif
 	if (nsfw == -1 || errno) {
 		switch (errno) {
