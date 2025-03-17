@@ -108,7 +108,7 @@ pub fn build(b: *Build) !void {
     const emit_man = b.option(bool, "emit-man-pages", "Generate man pages using GNU `help2man`") orelse false;
 
     const target_os = target.result.os.tag;
-    const current_os = builtin.os.tag;	
+    const current_os = builtin.os.tag;
     if (emit_man and target_os != current_os) {
         return error.Unsupported;
     }
