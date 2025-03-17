@@ -23,8 +23,8 @@ Options:
      -nf, --no-nerdfonts       does not use nerdfonts in output (not recommended) (its not pwetty).
      -fc, --force-color        forces output to use color, even if stdout is not a tty
 
-     -g, --uid-gid             lists the uid and gid of files. assimilar to `ls -n` or `ls -l`.
-     -r, --recursive           TO BE ADDED(TM)
+     -s, --stat             lists the mode of files. assimilar to `ls -n` or `ls -l`.
+     -R, --recursive           TO BE ADDED SOON(TM)
 
      -h, --help                displays this message.
      -v, --version             display CU-Fied version

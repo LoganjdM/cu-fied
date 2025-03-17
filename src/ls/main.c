@@ -172,40 +172,73 @@ struct files_query queried_files = {NULL, 32, 0, 1};
 #ifndef __GLIBC__
 #	define FTW_CONTINUE 0
 #	define FTW_SKIP_SUBTREE 0 // this doesn't auctually skip the subdir on non-gnu
-#	define FTW_STOP -1
+#	define FTW_STOP 1
 #endif
+// FIXME: why the fuck does ntfw just exits? i don't tell it to.. it prevents listing things like `/`, my brain is jumbled rn, ima go play ultakill and i'll get back at it //
 int query_files(const char* path, const struct stat* st, int typeflag, struct FTW* file_desc) {
 	// sanity checks //
+	bool couldnt_get_stat = false;
 	if (typeflag == FTW_NS) {
 		// I dont think nftw() sets errno, but open() will //
 		int fd = open(path, 0);
 		if (fd != -1) close(fd);
-		assert(errno != EBADF); // EBADF shouldn't happen
+		assert(errno != EBADF); // EBADF shouldn't happen //
 		switch (errno) {
-			case EACCES: return FTW_CONTINUE; // most likely failure //
-			case ELOOP: return FTW_CONTINUE;
-			default: return FTW_CONTINUE; // it is probably fine //
+			case EPERM: // most likely failure //
+				couldnt_get_stat = true;
+				break;
+			case EACCES: 
+				couldnt_get_stat = true;
+				break;
+			case ELOOP:
+				couldnt_get_stat = true;
+				break;
+			default: // it is probably fine //
+ 				couldnt_get_stat = true;
+				break; 
 		}
 	} else if (typeflag == FTW_SLN) {
 		errno = ELOOP;
-		return FTW_CONTINUE;
+		couldnt_get_stat = true;
 	}
 
-	if (file_desc->level > queried_files.max_depth) return FTW_SKIP_SUBTREE;
-	if (queried_files.len > queried_files.capacity || !queried_files.files) {
-		if ((queried_files.capacity << 1) < queried_files.capacity) {
-			// overflow! (I really hope zig compiler doesn't fuck with me by kill the program here) //
-			errno = EOVERFLOW;
-			return FTW_STOP;
-		} queried_files.capacity <<= 1;
-		void* new_ptr = reallocarray(queried_files.files, queried_files.capacity, sizeof(file_t));
-		if (!new_ptr) return FTW_STOP;
-		else queried_files.files = (file_t*)new_ptr;
-	}
 
 	char* path_copy = (char*)malloc(strlen(path) + 1);
 	if (!path_copy) return FTW_STOP;
 	strcpy(path_copy, path);
+	
+	if (file_desc->level > queried_files.max_depth) {
+		// TODO: (Contains X) //
+		if (file_desc->level > (queried_files.max_depth + 1)) {
+			free(path_copy);
+			return FTW_SKIP_SUBTREE;
+		}
+		if (queried_files.len > queried_files.capacity || !queried_files.files) {
+			if ((queried_files.capacity << 1) < queried_files.capacity) {
+				// overflow! (I really hope zig compiler doesn't fuck with me by killing the program here) //
+				errno = EOVERFLOW;
+				return FTW_STOP;
+			} queried_files.capacity <<= 1;
+			void* new_ptr = reallocarray(queried_files.files, queried_files.capacity, sizeof(file_t));
+			if (!new_ptr) return FTW_STOP;
+			else queried_files.files = (file_t*)new_ptr;
+		}
+		if (!couldnt_get_stat) queried_files.files[queried_files.len].st = *st; // < TEMP //
+		free(path_copy);
+		return FTW_SKIP_SUBTREE;
+	} else {
+		if (queried_files.len > queried_files.capacity || !queried_files.files) {
+			if ((queried_files.capacity << 1) < queried_files.capacity) {
+				// overflow! (I really hope zig compiler doesn't fuck with me by kill the program here) //
+				errno = EOVERFLOW;
+				return FTW_STOP;
+			} queried_files.capacity <<= 1;
+			void* new_ptr = reallocarray(queried_files.files, queried_files.capacity, sizeof(file_t));
+			if (!new_ptr) return FTW_STOP;
+			else queried_files.files = (file_t*)new_ptr;
+		}
+		if (!couldnt_get_stat) queried_files.files[queried_files.len].st = *st;
+	}
 
 	// i fucking hate this eyesore so i'll explain it so no one has to decipher these ancient egyptian hyroglyphics //
 	// 1. tokenize our path copy based on / once so we get the base dir //
@@ -219,7 +252,8 @@ int query_files(const char* path, const struct stat* st, int typeflag, struct FT
 
 	queried_files.files[queried_files.len].name = malloc(strlen(path + file_desc->base) + 1);
 	strcpy(queried_files.files[queried_files.len].name, path + file_desc->base);
-	queried_files.files[queried_files.len].st = *st;
+	
+	// else queried_files.files[queried_files.len].st = {};
 	
 	++queried_files.len;
 	return FTW_CONTINUE;
@@ -254,7 +288,7 @@ float get_simplified_file_size(const size_t f_size, char* unit, args_t args) {
 	// i spent like 30 minutes figuring that equation out
 	u(2) hr_arg = HR_ARG(args);
 	if (hr_arg == 3) return (float)f_size / pow(10, exponent);
-	else return (float)f_size * ( pow(2 * exponent, 10) ); // TODO: base2 math would make this faster and be more accurate //
+	else return (float)f_size / ( pow(2 * exponent, 10) ); // FIXME: this is wrong //
 }
 
 size_t get_longest_fdescriptor(const file_t* files, const size_t f_count, uint8_t* longest_fname, size_t* largest_fsize, const args_t args) {
@@ -283,7 +317,7 @@ size_t get_longest_fdescriptor(const file_t* files, const size_t f_count, uint8_
 			if (hr_arg == 2) result += snprintf(largest_hr_fsize, 25, "%.1f XiB", hr_size);
 			else result += snprintf(largest_hr_fsize, 25, "%.1f XB", hr_size);
 
-			result += /*( ) */4;
+			result += /*( ) */5;
 			if (args & ARG_DIR_CONTS) result += /*Contains */9;
 	}
 
@@ -396,9 +430,9 @@ bool list_files(const file_t* files,
 				if (!(file_size = malloc(ARBITRARY_SIZE))) return false;
 
 				// file system block of 8 KiB bytes on linux //
-				if (unit == 0) snprintf(file_size, ARBITRARY_SIZE, "%.0f Blocks)", hr_size);
-				else if (hr_arg == 2) snprintf(file_size, ARBITRARY_SIZE, "%.1f %ciB", hr_size, unit);
-				else snprintf(file_size, ARBITRARY_SIZE, "%.1f %cB", hr_size, unit);
+				if (unit == 0) snprintf(file_size, ARBITRARY_SIZE, "%.0f Blocks) ", hr_size);
+				else if (hr_arg == 2) snprintf(file_size, ARBITRARY_SIZE, "%.1f %ciB) ", hr_size, unit);
+				else snprintf(file_size, ARBITRARY_SIZE, "%.1f %cB) ", hr_size, unit);
 				#undef ARBITRARY_SIZE
 				descriptor_len += sb_append(&sb, file_size);
 			}
@@ -457,15 +491,28 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 	int nsfw = nftw(operand, &query_files, fd, FTW_DEPTH);
 	#endif
 	if (nsfw == -1 || errno) {
-		printf_color(stderr, RED, "Failed to allocate memory for files! ");
 		switch (errno) {
 			case EOVERFLOW:
+				printf_color(stderr, RED, "Failed to allocate memory for files! ");
 				printf_color(stderr, RED, "(File capacity overflowed!)\n"); 
-				break;
+				return 1;
 			case ENOMEM:
+				printf_color(stderr, RED, "Failed to allocate memory for files! ");
 				printf_color(stderr, RED, "(Ran out of memory!)\n");
+				return 1;
+			case ELOOP:
+				printf_color(stderr, YELLOW, "Encountered a symbolic link loop in a file!\n");
 				break;
-		} return 1;
+			case EACCES:
+				printf_color(stderr, YELLOW, "Didn't have permission to get stat on a file!\n");
+				break;
+			case EPERM:
+				printf_color(stderr, YELLOW, "Didn't have permission to get stat on a file!\n");
+				break;
+			default:
+				printf_color(stderr, YELLOW, "Encountered an error! (%s : %d)\n", strerror(errno), errno);
+				break;
+		}
 	}
 
 	uint8_t longest_fname = 0; size_t largest_fsize = 0;
@@ -482,7 +529,7 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 		free(queried_files.files[i].parent_dir);	
 	} free(queried_files.files);
 	
-	return ~succ;
+	return !succ;
 }
 
 int main(int argc, char** argv) {
@@ -500,7 +547,7 @@ int main(int argc, char** argv) {
 	if (!(args & ARG_NO_NERDFONTS)) {
 		f_ext_map = init_filetype_dict();
 		if (!f_ext_map) {
-			printf_color(stdout, RED, "Failed to allocate memory for file extension table, for nerdfonts!\n");
+			printf_color(stderr, RED, "Failed to allocate memory for file extension table, for nerdfonts!\n");
 			return 1;
 		}
 	}
@@ -516,6 +563,9 @@ int main(int argc, char** argv) {
 			#define ARG argv[i]
 			if (ARG[0] == '-') continue;
 			else --operand_count;
+
+			const char* folder_icon = args & ARG_NO_NERDFONTS ? "" : "";
+			printf_color(stdout, BLUE, "%s %s:\n", folder_icon, ARG);
 
 			retcode += query_and_list(ARG, f_ext_map, tty_dimensions, args);
 		}
