@@ -168,12 +168,8 @@ struct files_query {
 };
 struct files_query queried_files = {NULL, 32, 0, 1};
 
-// I really don't like this fix, infact I personally think GNU's FTW_ACTIONRETVAL flag is just how libc should handle nftw(3), but I am forced to do this. this also measn I believe lsf is inherntly faster on macos //
-#ifndef __GLIBC__
-#	define FTW_CONTINUE 0
-#	define FTW_SKIP_SUBTREE 0 // this doesn't auctually skip the subdir on non-gnu
-#	define FTW_STOP 1
-#endif
+#define FTW_STOP 1
+#define FTW_CONTINUE 0
 // FIXME: why the fuck does ntfw just exits? i don't tell it to.. it prevents listing things like `/`, my brain is jumbled rn, ima go play ultakill and i'll get back at it //
 int query_files(const char* path, const struct stat* st, int typeflag, struct FTW* file_desc) {
 	// sanity checks //
@@ -211,7 +207,7 @@ int query_files(const char* path, const struct stat* st, int typeflag, struct FT
 		// TODO: (Contains X) //
 		if (file_desc->level > (queried_files.max_depth + 1)) {
 			free(path_copy);
-			return FTW_SKIP_SUBTREE;
+			return FTW_CONTINUE;
 		}
 		if (queried_files.len > queried_files.capacity || !queried_files.files) {
 			if ((queried_files.capacity << 1) < queried_files.capacity) {
@@ -225,7 +221,7 @@ int query_files(const char* path, const struct stat* st, int typeflag, struct FT
 		}
 		if (!couldnt_get_stat) queried_files.files[queried_files.len].st = *st; // < TEMP //
 		free(path_copy);
-		return FTW_SKIP_SUBTREE;
+		return FTW_CONTINUE;
 	} else {
 		if (queried_files.len > queried_files.capacity || !queried_files.files) {
 			if ((queried_files.capacity << 1) < queried_files.capacity) {
@@ -240,20 +236,18 @@ int query_files(const char* path, const struct stat* st, int typeflag, struct FT
 		if (!couldnt_get_stat) queried_files.files[queried_files.len].st = *st;
 	}
 
-	// i fucking hate this eyesore so i'll explain it so no one has to decipher these ancient egyptian hyroglyphics //
-	// 1. tokenize our path copy based on / once so we get the base dir //
-	// 2. allocate the memory we need for that (and error check) //
-	// 3. copy it and free the path copy //
+	#define QUERIED_FILE queried_files.files[queried_files.len]
 	char* tok = strtok(path_copy, "/");
-	queried_files.files[queried_files.len].parent_dir = malloc(strlen(tok) + 1);
-	if (!queried_files.files[queried_files.len].parent_dir) return FTW_STOP;
-	strcpy(queried_files.files[queried_files.len].parent_dir, path_copy);
+	QUERIED_FILE.parent_dir = malloc(strlen(tok) + 1);
+	if (!QUERIED_FILE.parent_dir) return FTW_STOP;
+	
+	strcpy(QUERIED_FILE.parent_dir, path_copy);
 	free(path_copy);
 
-	queried_files.files[queried_files.len].name = malloc(strlen(path + file_desc->base) + 1);
-	strcpy(queried_files.files[queried_files.len].name, path + file_desc->base);
-	
-	// else queried_files.files[queried_files.len].st = {};
+	QUERIED_FILE.name = malloc(strlen(path + file_desc->base) + 1);
+	if (!QUERIED_FILE.name) return FTW_STOP;
+	strcpy(QUERIED_FILE.name, path + file_desc->base);
+	#undef QUERIED_FILE
 	
 	++queried_files.len;
 	return FTW_CONTINUE;
@@ -483,11 +477,7 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 		goto TODO;
 	}
 	
-	#ifdef __APPLE__
 	int nsfw = nftw(operand, &query_files, fd, 0);
-	#else
-	int nsfw = nftw(operand, &query_files, fd, FTW_ACTIONRETVAL);
-	#endif
 	if (nsfw == -1 || errno) {
 		switch (errno) {
 			case EOVERFLOW:
@@ -528,8 +518,10 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 	// free everything //
 	TODO:
 	for(size_t i=0; i<queried_files.len; ++i) {
-		free(queried_files.files[i].name);
-		free(queried_files.files[i].parent_dir);	
+		#define QUERIED_FILE queried_files.files[i]
+		free(QUERIED_FILE.name);
+		free(QUERIED_FILE.parent_dir);
+		#undef QUERIED_FILE
 	} free(queried_files.files);
 	
 	return succ;
@@ -559,7 +551,7 @@ int main(int argc, char** argv) {
 	size_t largest_fsize = 0, f_count = 0;
 	if (operand_count == 1) {
 		retcode = (uint8_t)query_and_list(".", f_ext_map, tty_dimensions, args);
-	} else{
+	} else {
 		for (int i=1; i<argc; ++i) {
 			if (operand_count == 0) break; // we can ignore the rest of the args //
 
