@@ -492,18 +492,16 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 	if (nsfw == -1 || errno) {
 		switch (errno) {
 			case EOVERFLOW:
-				printf_color(stderr, RED, "Failed to allocate memory for files! ");
-				printf_color(stderr, RED, "(File capacity overflowed!)\n"); 
+				printf_color(stderr, RED, "Failed to allocate memory for files! (File capacity overflowed!)\n"); 
 				return 1;
 			case ENOMEM:
-				printf_color(stderr, RED, "Failed to allocate memory for files! ");
-				printf_color(stderr, RED, "(Ran out of memory!)\n");
+				printf_color(stderr, RED, "Failed to allocate memory for files! (Ran out of memory!)\n");
 				return 1;
 			case ELOOP:
 				printf_color(stderr, YELLOW, "Encountered a symbolic link loop in a file!\n");
 				break;
 			case EACCES:
-				printf_color(stderr, YELLOW, "Didn't have permission to get stat on a file!\n");
+				printf_color(stderr, YELLOW, "Wasn't allowed to get stat on a file!\n");
 				break;
 			case EPERM:
 				printf_color(stderr, YELLOW, "Didn't have permission to get stat on a file!\n");
