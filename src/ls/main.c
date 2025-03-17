@@ -477,7 +477,6 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 		} return 1;
 	}
 
-	(void)args; // < TODO
 	if (args & ARG_RECURSIVE) {
 		queried_files.max_depth = UINT_MAX;
 		puts("Recursive file listing is not implemented yet!\n");
@@ -515,12 +514,19 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 		}
 	}
 
-	uint8_t longest_fname = 0; size_t largest_fsize = 0;
+	uint8_t longest_fname = 0; 
+	size_t largest_fsize = 0;
 	const size_t longest_fdescriptor = get_longest_fdescriptor(queried_files.files, queried_files.len, &longest_fname, &largest_fsize, args);
 	bool succ = 1;
-	if(!list_files(queried_files.files, longest_fdescriptor, queried_files.len, tty_dimensions.ws_col / longest_fdescriptor, f_ext_map, condition_dontcare, args)) {
-		printf_color(stderr, RED, "Failed to allocate memory for showing file size!\n");
-		succ = 0;
+	if (args & ARG_UNSORTED)
+		succ = list_files(queried_files.files, longest_fdescriptor, queried_files.len, tty_dimensions.ws_col / longest_fdescriptor, f_ext_map, condition_dontcare, args);
+	else {
+		succ = list_files(queried_files.files, longest_fdescriptor, queried_files.len, tty_dimensions.ws_col / longest_fdescriptor, f_ext_map, condition_isndir, args);
+		succ |= list_files(queried_files.files, longest_fdescriptor, queried_files.len, tty_dimensions.ws_col / longest_fdescriptor, f_ext_map, condition_isdir, args);
+	}
+	
+	if(!succ) {
+		printf_color(stderr, RED, "Failed to allocate memory for showing file size!\n"); // only possible failure
 	}
 	// free everything //
 	TODO:
@@ -529,7 +535,7 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 		free(queried_files.files[i].parent_dir);	
 	} free(queried_files.files);
 	
-	return !succ;
+	return succ;
 }
 
 int main(int argc, char** argv) {
