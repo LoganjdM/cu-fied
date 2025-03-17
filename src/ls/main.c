@@ -370,7 +370,13 @@ bool list_files(const file_t* files,
 			char* file_size = NULL;
 			if (hr_arg == 1) {
 				if (!(file_size = malloc(floor(log10(FILE.st.st_blocks + 1)) + 4))) return false;
+			// 	https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/stat.2.html //
+			// apple uses their own type for blocks that derives from long long //
+				#ifdef __APPLE__
+				sprintf(file_size, "%lli B)", FILE.st.st_blocks);
+				#else
 				sprintf(file_size, "%lu B)", FILE.st.st_blocks);
+				#endif
 			} else {
 				char unit = 0;
 				const float hr_size = get_simplified_file_size(FILE.st.st_blocks, &unit, args);
