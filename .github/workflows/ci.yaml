@@ -33,6 +33,8 @@ jobs:
       matrix:
         target:
           - x86_64-linux-gnu
+          - x86_64-linux-musl
+          - x86_64-macos
           - aarch64-macos
 
     steps:

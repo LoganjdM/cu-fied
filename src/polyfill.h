@@ -1,4 +1,5 @@
-#ifndef __GLIBC__
+// so ik more about c than I did before ig, turns out the reason why apple is so weird is because they use apple_libc, musl has all this shtuff, just not apple libc //
+#ifdef __APPLE__
 
 #ifdef REALLOCARRAY_IMPLEMENTATION
 #	include <stdlib.h>

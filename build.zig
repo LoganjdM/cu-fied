@@ -101,16 +101,14 @@ pub fn build(b: *Build) !void {
         "-DC23",
     };
 
-    const target = b.standardTargetOptions(.{ .default_target = .{
-        .abi = if (builtin.target.os.tag == .linux) .gnu else null,
-    } });
+    const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseFast });
 
     const no_bin = b.option(bool, "no-bin", "Don't emit binaries") orelse false;
     const emit_man = b.option(bool, "emit-man-pages", "Generate man pages using GNU `help2man`") orelse false;
 
     const target_os = target.result.os.tag;
-    const current_os = builtin.os.tag;
+    const current_os = builtin.os.tag;	
     if (emit_man and target_os != current_os) {
         return error.Unsupported;
     }
