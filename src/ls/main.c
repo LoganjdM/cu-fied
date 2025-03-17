@@ -1,7 +1,7 @@
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <dirent.h>
+// #include <dirent.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
@@ -9,6 +9,10 @@
 #include <errno.h>
 #include <stdio.h>
 #include <math.h> // floor() and log10()
+#include <fcntl.h>
+// ftw was abit hard to find info online, the best you'll get is /usr/include/ftw.h header and ftw(3) manpage //
+#include <ftw.h>
+
 // this is not how to properly see if this is C23 but oh well //
 #ifndef C23
 #	include <stdbool.h>
@@ -142,80 +146,135 @@ args_t parse_argv(const int argc, char** argv, uint32_t* operant_count) {
 }
 
 
-typedef struct file file_t;
-struct file {
-	char name[256];
-	size_t size;
-	mode_t stat;
-	// TODO: //
-	file_t* recursive_files;
+typedef struct {
+	char* parent_dir;
+	char* name;
+	struct stat st;
+} file_t;
+
+// mb eli, tried to to keep 0 global vars besides errno here since ik you don't like them
+// but because ftw(3) works on a callback function, kinda cant for this one var //
+struct files_query {
+	file_t* files;
+	size_t capacity;
+	size_t len;
+	uint32_t max_depth;
 };
+struct files_query queried_files = {NULL, 32, 0, 1};
 
-file_t* query_files(const char* path, uint8_t* longest_fname, size_t* largest_fsize, size_t* f_count, const args_t args, const uint16_t recurse) {
-	if (!(args & ARG_RECURSIVE)) {
-		if (recurse >= 1) {
-			errno = 22;
-			return NULL;
+int query_files(const char* path, const struct stat* st, int typeflag, struct FTW* file_desc) {
+	// sanity checks //
+	if (typeflag == FTW_NS) {
+		// I dont think nftw() sets errno, but open() will //
+		int fd = open(path, 0);
+		if (fd != -1) close(fd);
+		assert(errno != EBADF); // EBADF shouldn't happen
+		switch (errno) {
+			case EACCES: return FTW_CONTINUE; // most likely failure //
+			case ELOOP: return FTW_CONTINUE;
+			default: return FTW_CONTINUE; // it is probably fine //
 		}
-	}
-	DIR* dfd = opendir(path);
-	if (!dfd) return NULL;
-
-	#define DA_STARTING_LEN 32
-	size_t da_len = DA_STARTING_LEN;
-	file_t* result = (file_t*)calloc(da_len, sizeof(file_t));
-	// I'd normally use a goto here but since we allocate a bunch of variable sized var's on the stack, we can't guarantee our scope to be constant size... but now that I think about it whenever I use goto, i use it like a defer... god damn i wish this old ass language had some of zig's features(yes i'm aware defer was proposed to the C standard) //
-	if (!result) {
-		closedir(dfd);
-		return NULL;
-	}
-
-	char true_path[strlen(path) + 257] = {};
-	struct stat st = {}; struct dirent* dp = NULL;
-	for (*f_count=0; (dp=readdir(dfd))!=NULL; ++*f_count) {
-		if (*f_count >= da_len) {
-			// I feel like (2da_len)/2 may get sneakily optimized out by -O... //
-			if (*f_count != 0 && (2*da_len)/2 != *f_count) {
-				errno = EOVERFLOW;
-				break;
-			} da_len*=2;
-
-			void* da_new_sheisse = reallocarray(result, da_len, sizeof(file_t));
-			if (!da_new_sheisse) break;
-			else result = (file_t*)da_new_sheisse;
-		}
-
-		sprintf(true_path, "%s/%s", path, dp->d_name);
-		stat(true_path, &st);
-
-		result[*f_count].stat = st.st_mode;
-		if (!S_ISDIR(st.st_mode))
-			result[*f_count].size = (HR_ARG(args) == 1) ? st.st_size : st.st_blocks;
-		else {
-			// TODO: this is how we will do recursion flag, but for now just ignore it and free this pointer //
-			size_t dir_conts_size = 0, junk1 = 0;
-			uint8_t junk0 = 0;
-			// prevent endless recursion caused by forever checking "./.", '\000' <repeats 254 times> //
-			// FIXME: this is very fucking slow, infact, this ENTIRE function should be rewritten to use fts(3), as that would be quicker than stat'ing and using dirent. //
-			// FIXME: infact, I have not checked ls src code in a bit, but I wonder if they even do recursion on --recursive or just us fts. //
-			if (strcmp(dp->d_name, ".") && strcmp(dp->d_name, "..")) {
-				free(query_files(true_path, &junk0, &dir_conts_size, &junk1, args, recurse + 1));
-				errno = 0; // < this sucks, essentially throws awaay whatever error we had //
-			}
-		
-			result[*f_count].size = dir_conts_size;
-		}
-
-		if (result[*f_count].size > *largest_fsize) *largest_fsize = st.st_size;
-
-		strcpy(result[*f_count].name, dp->d_name);
-		uint8_t fname = (uint8_t)strlen(dp->d_name);
-		if (fname > *longest_fname) *longest_fname = fname;
+	} else if (typeflag == FTW_SLN) {
+		errno = ELOOP;
+		return FTW_CONTINUE;
 	}
 
-	closedir(dfd);
-	return result;
+	if (file_desc->level > queried_files.max_depth) return FTW_SKIP_SUBTREE;
+	if (queried_files.len > queried_files.capacity || !queried_files.files) {
+		if ((queried_files.capacity << 1) < queried_files.capacity) {
+			// overflow! (I really hope zig compiler doesn't fuck with me by kill the program here) //
+			errno = EOVERFLOW;
+			return FTW_STOP;
+		} queried_files.capacity <<= 1;
+		void* new_ptr = reallocarray(queried_files.files, queried_files.capacity, sizeof(file_t));
+		if (!new_ptr) return FTW_STOP;
+		else queried_files.files = (file_t*)new_ptr;
+	}
+
+	char* path_copy = (char*)malloc(strlen(path) + 1);
+	if (!path_copy) return FTW_STOP;
+	strcpy(path_copy, path);
+
+	// i fucking hate this eyesore so i'll explain it so no one has to decypher these ancient egyptian hyroglyphics //
+	char* tok = strtok(path_copy, "/");
+	queried_files.files[queried_files.len].parent_dir = malloc(strlen(tok) + 1);
+	if (!queried_files.files[queried_files.len].parent_dir) return FTW_STOP;
+	strcpy(queried_files.files[queried_files.len].parent_dir, tok);
+	free(path_copy);
+
+	queried_files.files[queried_files.len].name = malloc(strlen(path + file_desc->base) + 1);
+	strcpy(queried_files.files[queried_files.len].name, path + file_desc->base);
+	queried_files.files[queried_files.len].st = *st;
+	
+	++queried_files.len;
+	return FTW_CONTINUE;
 }
+
+//bool query_files(const char** paths, uint8_t* longest_fname, size_t* largest_fsize, size_t* f_count, const args_t args, const uint16_t recurse) {
+	
+// 	if (!(args & ARG_RECURSIVE)) {
+// 		if (recurse >= 1) {
+// 			errno = 22;
+// 			return NULL;
+// 		}
+// 	}
+// 	DIR* dfd = opendir(path);
+// 	if (!dfd) return NULL;
+// 
+// 	#define DA_STARTING_LEN 32
+// 	size_t da_len = DA_STARTING_LEN;
+// 	file_t* result = (file_t*)calloc(da_len, sizeof(file_t));
+// 	// I'd normally use a goto here but since we allocate a bunch of variable sized var's on the stack, we can't guarantee our scope to be constant size... but now that I think about it whenever I use goto, i use it like a defer... god damn i wish this old ass language had some of zig's features(yes i'm aware defer was proposed to the C standard) //
+// 	if (!result) {
+// 		closedir(dfd);
+// 		return NULL;
+// 	}
+// 
+// 	char true_path[strlen(path) + 257] = {};
+// 	struct stat st = {}; struct dirent* dp = NULL;
+// 	for (*f_count=0; (dp=readdir(dfd))!=NULL; ++*f_count) {
+// 		if (*f_count >= da_len) {
+// 			// I feel like (2da_len)/2 may get sneakily optimized out by -O... //
+// 			if (*f_count != 0 && (2*da_len)/2 != *f_count) {
+// 				errno = EOVERFLOW;
+// 				break;
+// 			} da_len*=2;
+// 
+// 			void* da_new_sheisse = reallocarray(result, da_len, sizeof(file_t));
+// 			if (!da_new_sheisse) break;
+// 			else result = (file_t*)da_new_sheisse;
+// 		}
+// 
+// 		sprintf(true_path, "%s/%s", path, dp->d_name);
+// 		stat(true_path, &st);
+// 
+// 		result[*f_count].stat = st.st_mode;
+// 		if (!S_ISDIR(st.st_mode))
+// 			result[*f_count].size = (HR_ARG(args) == 1) ? st.st_size : st.st_blocks;
+// 		else {
+// 			// TODO: this is how we will do recursion flag, but for now just ignore it and free this pointer //
+// 			size_t dir_conts_size = 0, junk1 = 0;
+// 			uint8_t junk0 = 0;
+// 			// prevent endless recursion caused by forever checking "./.", '\000' <repeats 254 times> //
+// 			// FIXME: this is very fucking slow, infact, this ENTIRE function should be rewritten to use fts(3), as that would be quicker than stat'ing and using dirent. //
+// 			// FIXME: infact, I have not checked ls src code in a bit, but I wonder if they even do recursion on --recursive or just us fts. //
+// 			if (strcmp(dp->d_name, ".") && strcmp(dp->d_name, "..")) {
+// 				free(query_files(true_path, &junk0, &dir_conts_size, &junk1, args, recurse + 1));
+// 				errno = 0; // < this sucks, essentially throws awaay whatever error we had //
+// 			}
+// 		
+// 			result[*f_count].size = dir_conts_size;
+// 		}
+// 
+// 		if (result[*f_count].size > *largest_fsize) *largest_fsize = st.st_size;
+// 
+// 		strcpy(result[*f_count].name, dp->d_name);
+// 		uint8_t fname = (uint8_t)strlen(dp->d_name);
+// 		if (fname > *longest_fname) *longest_fname = fname;
+// 	}
+// 
+// 	closedir(dfd);
+// 	return result;
 
 float get_simplified_file_size(const size_t f_size, char* unit, args_t args) {
 	assert(*unit == 0);
@@ -249,20 +308,27 @@ float get_simplified_file_size(const size_t f_size, char* unit, args_t args) {
 	else return (float)f_size * ( pow(2 * exponent, 10) ); // TODO: base2 math would make this faster and be more accurate //
 }
 
-size_t get_longest_fdescriptor(const uint8_t longest_fname, const size_t largest_fsize, const args_t args) {
-	// assert(largest_fsize != 0);
+size_t get_longest_fdescriptor(const file_t* files, const size_t f_count, uint8_t* longest_fname, size_t* largest_fsize, const args_t args) {
+	assert(*longest_fname == 0);
+	assert(*largest_fsize == 0);
+	// first we have to get longest_fname and largest_fsize //
+	for (size_t i=0; i<f_count; ++i) {
+		size_t fname_len = strlen(files[i].name);
+		if (fname_len > *longest_fname) *longest_fname = fname_len;
+		if (files[i].st.st_size > *largest_fsize) *largest_fsize = files[i].st.st_size;
+	}
 	
-	size_t result = (size_t)longest_fname + 3;
+	size_t result = (size_t)*longest_fname + 3;
 
 	u(2) hr_arg = HR_ARG(args);
 	switch (hr_arg) {
 		case 0: break;
 		case 1:
-			result += floor(log10(largest_fsize)) + 1;
+			result += floor(log10(*largest_fsize)) + 1;
 			break;
 		default:
 			char junk = 0;
-			float hr_size = get_simplified_file_size(largest_fsize, &junk, args);
+			float hr_size = get_simplified_file_size(*largest_fsize, &junk, args);
 			// "somewhere around this ... shouldn't overflow" am I stupid? if i'm not certain i should use snprintf not sprintf to truly prevent overflow //
 			char largest_hr_fsize[25] = {0};
 			if (hr_arg == 2) result += snprintf(largest_hr_fsize, 25, "%.1f XiB", hr_size);
@@ -278,12 +344,17 @@ size_t get_longest_fdescriptor(const uint8_t longest_fname, const size_t largest
 }
 
 const char* get_descriptor_color(file_t f_info, table_t* f_ext_map, args_t args) {
-	if(f_info.stat & S_IFDIR) return get_escape_code(STDOUT_FILENO, BLUE);
-	else if(f_info.stat & S_IXUSR) return get_escape_code(STDOUT_FILENO, GREEN);
+	if(f_info.st.st_mode & S_IFDIR) return get_escape_code(STDOUT_FILENO, BLUE);
+	else if(f_info.st.st_mode & S_IXUSR) return get_escape_code(STDOUT_FILENO, GREEN);
 
 	if (!(args & ARG_NO_NERDFONTS)) {
 		char* is_media = NULL; char* extension = NULL;
-		char* tok = strtok(f_info.name, ".");
+		
+		// strtok(3) modifies the string itself, we must create a copy or our name becomes all fucked // 
+		const char file_name_copy[strlen(f_info.name) + 1] = {};
+		strcpy(file_name_copy, f_info.name);
+		
+		char* tok = strtok(file_name_copy, ".");
 		while(tok) {
 			extension = tok;
 			tok = strtok(NULL, ".");
@@ -297,7 +368,7 @@ const char* get_descriptor_color(file_t f_info, table_t* f_ext_map, args_t args)
 		else if(!strcmp(is_media, "󰈫 ")) return get_escape_code(STDOUT_FILENO, YELLOW);
 	}
 
-	if(f_info.stat & S_IFREG) return "\0";
+	if(f_info.st.st_mode & S_IFREG) return "\0";
 	else return get_escape_code(STDOUT_FILENO, CYAN); // must be symlink //
 }
 
@@ -307,15 +378,19 @@ const char* get_nerdfont_icon(file_t f_info, table_t* f_ext_map, const args_t ar
 	char* result = NULL;
 	if ((result = f_ext_map->get(f_ext_map, f_info.name).s)) return result;
 
-	char* tok = strtok(f_info.name, ".");
+	// strtok(3) modifies the string itself, we must create a copy or our name becomes all fucked // 
+	const char file_name_copy[strlen(f_info.name) + 1] = {};
+	strcpy(file_name_copy, f_info.name);			
+
+	char* tok = strtok(file_name_copy, ".");
 	while (tok) {
 		result = tok;
 		tok = strtok (NULL, ".");
 	} if((result = f_ext_map->get(f_ext_map, result).s) &&
-		 !(!strcmp(result, " ") && S_ISDIR(f_info.stat)) /*HACK TO GET RID OF `lib` DIRS */ ) return result;
+		 !(!strcmp(result, " ") && S_ISDIR(f_info.st.st_mode)) /*HACK TO GET RID OF `lib` DIRS */ ) return result;
 
-	if(S_ISDIR(f_info.stat)) return " ";
-	else if(f_info.stat & S_IXUSR) return " ";
+	if(S_ISDIR(f_info.st.st_mode)) return " ";
+	else if(f_info.st.st_mode & S_IXUSR) return " ";
 	else return " ";
 }
 
@@ -331,7 +406,7 @@ bool list_files(const file_t* files,
 	static size_t files_printed = 0;
 	for (size_t i=0; i<f_count; ++i) {
 		#define FILE files[i]
-		if (condition(FILE.stat)) continue;
+		if (condition(FILE.st.st_mode)) continue;
 		else if (FILE.name[0] == '.') {
 			if (!(args & ARG_DOT_DIRS) && !(strcmp(FILE.name, ".") && strcmp(FILE.name, ".."))) continue;
 			else if (!(args & ARG_DOT_FILES)) continue;
@@ -339,7 +414,6 @@ bool list_files(const file_t* files,
 
 		strbuild_t sb = sb_new();
 		size_t descriptor_len = 0;
-		
 		sb_append(&sb, get_descriptor_color(FILE, f_ext_map, args));
 		descriptor_len += sb_append(&sb, get_nerdfont_icon(FILE, f_ext_map, args));
 		sb_append(&sb, get_escape_code(STDOUT_FILENO, BOLD));
@@ -351,18 +425,18 @@ bool list_files(const file_t* files,
 		// ehh _BitInt(2) is nice and explicit but I'm aware compile will make this an i8 //
 		u(2) hr_arg = HR_ARG(args);
 		if (hr_arg) {
-			if (S_ISDIR(FILE.stat)) {
+			if (S_ISDIR(FILE.st.st_mode)) {
 				if (!(args & ARG_DIR_CONTS)) goto skip_dirs;
 				else descriptor_len += sb_append(&sb, "(Contains ");
 			} else descriptor_len += sb_append(&sb, "(");
 
 			char* file_size = NULL;
 			if (hr_arg == 1) {
-				if (!(file_size = malloc(floor(log10(FILE.size + 1)) + 4))) return false;
-				sprintf(file_size, "%lu B)", FILE.size);
+				if (!(file_size = malloc(floor(log10(FILE.st.st_blocks + 1)) + 4))) return false;
+				sprintf(file_size, "%lu B)", FILE.st.st_blocks);
 			} else {
 				char unit = 0;
-				const float hr_size = get_simplified_file_size(FILE.size, &unit, args);
+				const float hr_size = get_simplified_file_size(FILE.st.st_blocks, &unit, args);
 				#define ARBITRARY_SIZE 100
 				if (!(file_size = malloc(ARBITRARY_SIZE))) return false;
 
@@ -384,6 +458,7 @@ bool list_files(const file_t* files,
 		} else printf("%s", sb.str);
 		free(sb.str);
 	}
+	fflush(stdout);
 	return true;
 }
 
@@ -396,7 +471,7 @@ int main(int argc, char** argv) {
 	ioctl(STDOUT_FILENO, TIOCGWINSZ, &tty_dimensions);
 
 
-	uint32_t operand_count = 0;
+	uint32_t operand_count = 1;
 	const args_t args = parse_argv(argc, argv, &operand_count);
 	#ifndef NDEBUG
 	// https://www.open-std.org/jtc1/sc22/wg14/www/docs/n3047.pdf, _BitInt is converted to corresponding bit precision, so int is fully representable here //
@@ -411,87 +486,58 @@ int main(int argc, char** argv) {
 			return 1;
 		}
 	}
-	file_t* files = NULL;
 	uint8_t longest_fname = 0;
 	size_t largest_fsize = 0, f_count = 0;
-	if (operand_count == 0) {
-		files = query_files(".", &longest_fname, &largest_fsize, &f_count, args, 0);
-		if (errno || !files) {
-			// TODO: error checking //
-			return 1;
-		}
 
-		// TODO: this should be abstracted out to afunction but I don't know what to call the function //
-		int8_t list_files_retcode = 0;
-		size_t longest_fdescriptor = get_longest_fdescriptor(longest_fname, largest_fsize, args);
-		if (args & ARG_UNSORTED)
-			list_files_retcode = list_files(files, longest_fdescriptor, f_count, tty_dimensions.ws_col / longest_fdescriptor, f_ext_map, condition_dontcare, args);
-		else {
-			list_files_retcode =  list_files(files, longest_fdescriptor, f_count, tty_dimensions.ws_col / longest_fdescriptor, f_ext_map, condition_isndir, args);
-			list_files_retcode =  list_files(files, longest_fdescriptor, f_count, tty_dimensions.ws_col / longest_fdescriptor, f_ext_map, condition_isdir, args);
+	uint8_t retcode = 0;
+	for (int i=1; i<argc; ++i) {
+		if (operand_count == 0) break; // we can ignore the rest of the args //
+
+		#define ARG argv[i]
+		if (ARG[0] == '-') continue;
+		else --operand_count;
+
+		
+		int fd = open(ARG, 0);
+		if (fd == -1) {
+			printf_color(stderr, YELLOW, "Could not list ");
+			printf_color(stderr, BLUE, "%s ", ARG);
+			switch (errno) {
+				case EACCES:
+					printf_color(stderr, YELLOW, "! (do you have access to it?)\n", ARG);
+					break;
+				case EBADF:
+					printf_color(stderr, YELLOW, "! (is it a valid file/directory?)\n", ARG);
+					break;
+				case EINVAL:
+					printf_color(stderr, YELLOW, "! (is it a valid path?)\n", ARG);
+					break;
+				default: 
+					printf_color(stderr, YELLOW, "!\n", ARG);
+					break;
+			} 
+			++retcode; 
+			continue;
 		}
 		
-		free(files);
-		putchar('\n');
-		return 0;
-	}
-
-	uint8_t ret_code = 0;
-	for(int i=1; i<argc; ++i) {
-		#define OPERAND argv[i]
-		if (!operand_count) break;
-		else if (OPERAND[0] == '-') continue;
-		else if (OPERAND[strlen(OPERAND)-1] == '/' && strlen(OPERAND) != 1) OPERAND[strlen(OPERAND) - 1] = '\0';
-
-		struct stat st;
-		if (stat(OPERAND, &st) == -1) {
-			printf_color(stderr, YELLOW, "Failed to access %s! (Do you have permission?)\n", OPERAND);
-			++ret_code;
-			continue;
-		} else if (!S_ISDIR(st.st_mode)) {
-			// FIXME: why tf does this print? //
-			puts("Currently using lsf on files does nothing. It is planned in the future to call to `cat`");
-			// TODO: call to cat, bat, or catf.... auctually... //
-			// side rant: I don't know if Cu-Fied will implement cat or cd //
-			// for cat, bat is already REALLY good, and for cd zoxide works wonders.. //
-			// and I don't know what to do for either of those that hasn't already been done well //
-			continue;
-		}
-
-		if (!(args & ARG_NO_NERDFONTS)) printf_color(stdout, BLUE, " ");
-		printf_color(stdout, BLUE, "%s:\n", OPERAND);
-
-		errno = 0;
-		longest_fname = 0, largest_fsize = 0, f_count = 0;
-		files = query_files(OPERAND, &longest_fname, &largest_fsize, &f_count, args, 0);
-		if (errno || !files) {
+		// queried_files = {NULL, 32, 0, 1}; // this will change based on `args`
+		int nsfw = nftw(ARG, &query_files, fd, FTW_ACTIONRETVAL);
+		if (nsfw == -1 || errno) {
+			printf_color(stderr, RED, "Failed to allocate memory for files! ");
 			switch (errno) {
 				case EOVERFLOW:
-					printf_color(stderr, RED, "Failed to allocate memory for listing %s! (Multiplication overflow!)\n", OPERAND);
+					printf_color(stderr, RED, "(File capacity overflowed!)\n"); 
+					break;
 				case ENOMEM:
-					printf_color(stderr, RED, "Failed to allocate memory for listing %s! (Out of memory!)\n", OPERAND);
-				default:
-					printf_color(stderr, RED, "Failed to list %s!\n", OPERAND);
-			}
-			++ret_code;
-			goto failed_to_query_files;
+					printf_color(stderr, RED, "(Ran out of memory!)\n");
+					break;
+			} continue;
 		}
 
-		int8_t list_files_retcode = 0;
-		size_t longest_fdescriptor = get_longest_fdescriptor(longest_fname, largest_fsize, args);
-		if (args & ARG_UNSORTED)
-			list_files_retcode = list_files(files, longest_fdescriptor, f_count, tty_dimensions.ws_col / longest_fdescriptor, f_ext_map, condition_dontcare, args);
-		else {
-			list_files_retcode =  list_files(files, longest_fdescriptor, f_count, tty_dimensions.ws_col / longest_fdescriptor, f_ext_map, condition_isndir, args);
-			list_files_retcode =  list_files(files, longest_fdescriptor, f_count, tty_dimensions.ws_col / longest_fdescriptor, f_ext_map, condition_isdir, args);
-		}
-
-		failed_to_query_files:
-	
-		--operand_count;
-		putchar('\n');
-
-		if (operand_count > 1) putchar('\n');
-		free(files);
-	} return ret_code;
+		uint8_t longest_fname = 0; size_t largest_fsize = 0;
+		const size_t longest_fdescriptor = get_longest_fdescriptor(queried_files.files, queried_files.len, &longest_fname, &largest_fsize, args);
+		if(!list_files(queried_files.files, longest_fdescriptor, queried_files.len, tty_dimensions.ws_col / longest_fdescriptor, f_ext_map, condition_dontcare, args))
+			printf_color(stderr, RED, "Failed to allocate memory for showing file size!\n");
+		free(queried_files.files);
+	} return retcode;
 }
