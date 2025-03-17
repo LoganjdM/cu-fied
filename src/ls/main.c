@@ -195,7 +195,7 @@ int query_files(const char* path, const struct stat* st, int typeflag, struct FT
 	if (!path_copy) return FTW_STOP;
 	strcpy(path_copy, path);
 
-	// i fucking hate this eyesore so i'll explain it so no one has to decypher these ancient egyptian hyroglyphics //
+	// i fucking hate this eyesore so i'll explain it so no one has to decipher these ancient egyptian hyroglyphics //
 	// 1. tokenize our path copy based on / once so we get the base dir //
 	// 2. allocate the memory we need for that (and error check) //
 	// 3. copy it and free the path copy //
