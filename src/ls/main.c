@@ -483,11 +483,10 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 		goto TODO;
 	}
 	
-	// if I understand the description of FTW_DEPTH flag correctly, we go through all of ./ first and then the subdirectories //
 	#ifndef __APPLE__
-	int nsfw = nftw(operand, &query_files, fd, FTW_ACTIONRETVAL|FTW_DEPTH);
+	int nsfw = nftw(operand, &query_files, fd, FTW_ACTIONRETVAL);
 	#else
-	int nsfw = nftw(operand, &query_files, fd, FTW_DEPTH);
+	int nsfw = nftw(operand, &query_files, fd, 0);
 	#endif
 	if (nsfw == -1 || errno) {
 		switch (errno) {
