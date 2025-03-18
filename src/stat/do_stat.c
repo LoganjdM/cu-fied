@@ -12,7 +12,7 @@ char* get_readable_mode(mode_t mode) {
 	else sb_append(&sb, "-");
 	
 	#define APPEND_IXXXX(flag, hr_char) \
-		if (mode & flag) sb_append(&sb, #hr_char); \ 
+		if (mode & flag) sb_append(&sb, #hr_char); \
 		else sb_append(&sb, "-")
 
 	APPEND_IXXXX(S_IRUSR, r);

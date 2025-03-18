@@ -20,6 +20,7 @@
 
 #include "../colors.h"
 #include "../app_info.h"
+#include "../stat/do_stat.h"
 #include "f_ext_map.h"
 #include <strbuild.h>
 
@@ -168,8 +169,6 @@ struct files_query {
 };
 struct files_query queried_files = {NULL, 32, 0, 1};
 
-#define FTW_STOP 1
-#define FTW_CONTINUE 0
 // FIXME: why the fuck does ntfw just exits? i don't tell it to.. it prevents listing things like `/`, my brain is jumbled rn, ima go play ultakill and i'll get back at it //
 int query_files(const char* path, const struct stat* st, int typeflag, struct FTW* file_desc) {
 	// sanity checks //
@@ -200,37 +199,37 @@ int query_files(const char* path, const struct stat* st, int typeflag, struct FT
 
 
 	char* path_copy = (char*)malloc(strlen(path) + 1);
-	if (!path_copy) return FTW_STOP;
+	if (!path_copy) return 1;
 	strcpy(path_copy, path);
 	
 	if (file_desc->level > queried_files.max_depth) {
 		// TODO: (Contains X) //
 		if (file_desc->level > (queried_files.max_depth + 1)) {
 			free(path_copy);
-			return FTW_CONTINUE;
+			return 0;
 		}
 		if (queried_files.len > queried_files.capacity || !queried_files.files) {
 			if ((queried_files.capacity << 1) < queried_files.capacity) {
 				// overflow! (I really hope zig compiler doesn't fuck with me by killing the program here) //
 				errno = EOVERFLOW;
-				return FTW_STOP;
+				return 1;
 			} queried_files.capacity <<= 1;
 			void* new_ptr = reallocarray(queried_files.files, queried_files.capacity, sizeof(file_t));
-			if (!new_ptr) return FTW_STOP;
+			if (!new_ptr) return 1;
 			else queried_files.files = (file_t*)new_ptr;
 		}
 		if (!couldnt_get_stat) queried_files.files[queried_files.len].st = *st; // < TEMP //
 		free(path_copy);
-		return FTW_CONTINUE;
+		return 0;
 	} else {
 		if (queried_files.len > queried_files.capacity || !queried_files.files) {
 			if ((queried_files.capacity << 1) < queried_files.capacity) {
 				// overflow! (I really hope zig compiler doesn't fuck with me by kill the program here) //
 				errno = EOVERFLOW;
-				return FTW_STOP;
+				return 1;
 			} queried_files.capacity <<= 1;
 			void* new_ptr = reallocarray(queried_files.files, queried_files.capacity, sizeof(file_t));
-			if (!new_ptr) return FTW_STOP;
+			if (!new_ptr) return 1;
 			else queried_files.files = (file_t*)new_ptr;
 		}
 		if (!couldnt_get_stat) queried_files.files[queried_files.len].st = *st;
@@ -239,18 +238,18 @@ int query_files(const char* path, const struct stat* st, int typeflag, struct FT
 	#define QUERIED_FILE queried_files.files[queried_files.len]
 	char* tok = strtok(path_copy, "/");
 	QUERIED_FILE.parent_dir = malloc(strlen(tok) + 1);
-	if (!QUERIED_FILE.parent_dir) return FTW_STOP;
+	if (!QUERIED_FILE.parent_dir) return 1;
 	
 	strcpy(QUERIED_FILE.parent_dir, path_copy);
 	free(path_copy);
 
 	QUERIED_FILE.name = malloc(strlen(path + file_desc->base) + 1);
-	if (!QUERIED_FILE.name) return FTW_STOP;
+	if (!QUERIED_FILE.name) return 1;
 	strcpy(QUERIED_FILE.name, path + file_desc->base);
 	#undef QUERIED_FILE
 	
 	++queried_files.len;
-	return FTW_CONTINUE;
+	return 0;
 }
 
 float get_simplified_file_size(const size_t f_size, char* unit, args_t args) {
@@ -398,7 +397,12 @@ bool list_files(const file_t* files,
 		descriptor_len += sb_append(&sb, FILE.name);
 		descriptor_len += sb_append(&sb, " ");
 		sb_append(&sb, get_escape_code(STDOUT_FILENO, RESET));
-
+		if (args & ARG_STAT) {
+			descriptor_len += sb_append(&sb, "<");
+			descriptor_len += sb_append(&sb, get_readable_mode(FILE.st.st_mode));
+			descriptor_len += sb_append(&sb, ">");
+		}
+	
 		// ehh _BitInt(2) is nice and explicit but I'm aware compile will make this an i8 //
 		u(2) hr_arg = HR_ARG(args);
 		if (hr_arg) {

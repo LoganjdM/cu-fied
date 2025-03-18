@@ -1,3 +1,6 @@
+#ifndef _STRBUILD_H_
+#	define _STRBUILD_H_
+
 #ifndef _STDLIB_
 #	include <stddef.h>
 #endif
@@ -11,3 +14,5 @@ typedef struct {
 // returns bytes moved //
 size_t sb_append(strbuild_t* sb, const char* appendee);
 strbuild_t sb_new(void);
+
+#endif
