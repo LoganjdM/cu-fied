@@ -8,8 +8,8 @@ char* get_readable_mode(mode_t mode) {
 		errno = 12; // ENOMEM //	
 		return NULL;
 	}
-	// I don't know what the first - in stat represents tbh.. //
-	sb_append(&sb, "-");
+	if (S_ISDIR(mode)) sb_append(&sb, "d");
+	else sb_append(&sb, "-");
 	
 	#define APPEND_IXXXX(flag, hr_char) \
 		if (mode & flag) sb_append(&sb, #hr_char); \ 

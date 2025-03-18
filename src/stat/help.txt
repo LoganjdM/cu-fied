@@ -1,0 +1,11 @@
+Usage: statf [OPTION]... FILE...
+Display a file or directories status in a fancified manner.
+
+Options:
+     -f, --no-nerdfonts   Don't use nerdfonts.
+
+     -h, --help           Print this message and exit.
+
+     -v, --version        Print Cu-Fied version and exit.
+
+     -b, --bin            My trash can (:<).
