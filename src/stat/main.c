@@ -58,7 +58,7 @@ args_t parse_argv(int argc, char** argv) {
 					result |= ARG_NO_NERDFONT;
 					break;
 				default:
-					printf_color(stderr, YELLOW, "Unkown argument: %s\n", ARG);
+					printf_color(stderr, YELLOW, "Unknown argument: %s\n", ARG);
 					return result;
 			}
 		}
@@ -104,7 +104,7 @@ void print_gid_uid(const struct stat st) {
 				printf_color(stderr, YELLOW, "Didn't have enough memory to get Uid info! ");
 				break;
 			default: // 0 or ENOENT or ESRCH or EBADF or EPERM ... //
-				printf_color(stderr, YELLOW, "Couldn't find info on the file's Uid! "); // shoudln't happen //
+				printf_color(stderr, YELLOW, "Couldn't find info on the file's Uid! "); // should not happen //
 		} printf(" Uid: (%d)\t", st.st_uid);
 	} else printf("\tUid: (%d/%s)\t", st.st_uid, pws->pw_name);
 	
@@ -129,7 +129,7 @@ void print_gid_uid(const struct stat st) {
 				printf_color(stderr, YELLOW, "Didn't have enough memory to get Gid info! ");
 				break;
 			default: // 0 or ENOENT or ESRCH or EBADF or EPERM ... //
-				printf_color(stderr, YELLOW, "Couldn't find info on the file's Gid! "); // shoudln't happen //
+				printf_color(stderr, YELLOW, "Couldn't find info on the file's Gid! "); // should not happen //
 		} printf(" Gid: (%d)\n", st.st_gid);
 	} else printf("Gid: (%d/%s)\n", st.st_gid, grp->gr_name);
 

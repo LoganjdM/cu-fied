@@ -107,6 +107,8 @@ table_t* ht_create(size_t starting_cap) {
 }
 
 void ht_free(table_t* ht) {
+	assert(ht);
+	
 	for(size_t i=0; i<ht->cap; ++i) {
 		if(ht->buckets[i].key) free(ht->buckets[i].key);
 	} free(ht->buckets);

@@ -569,6 +569,6 @@ int main(int argc, char** argv) {
 			retcode += query_and_list(ARG, f_ext_map, tty_dimensions, args);
 		}
 	}
-	ht_free(f_ext_map);
+	if(f_ext_map) ht_free(f_ext_map);
 	return retcode;
 }
