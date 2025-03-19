@@ -157,8 +157,8 @@ bool print_nerdfont(const char* operand, const struct stat st, table_t* f_ext_ma
 		return true;
 	}
 	
-	if (S_ISDIR(st.st_mode)) printf_color(stdout, BLUE, nerdfont);
-	else printf(nerdfont);
+	if (S_ISDIR(st.st_mode)) printf_color(stdout, BLUE, "%s", nerdfont);
+	else printf("%s", nerdfont);
 	free(operand_copy);
 	return true;
 }
@@ -206,8 +206,12 @@ int main(int argc, char** argv) {
 		
 		if (!S_ISDIR(st.st_mode)) printf("%s\n", OPERAND);
 		else printf_color(stdout, BLUE, "%s\n", OPERAND);
-		
+
+		#ifdef __APPLE__
+		printf("\tSize: %lli\tBlocks: %lli\tI/O Block: %i\n", st.st_size, st.st_blocks, st.st_blksize);
+		#else
 		printf("\tSize: %zu\tBlocks: %zu\tI/O Block: %zu\n", st.st_size, st.st_blocks, st.st_blksize);
+		#endif
 		
 		char* hr_mode = get_readable_mode(st.st_mode);
 		if (hr_mode) {
@@ -218,16 +222,30 @@ int main(int argc, char** argv) {
 			printf("\tMode: (%d)", st.st_mode);
 		}
 
+		#ifdef __APPLE__
+		printf("\tDevice ID: %i\tInode: %llu\tLinks: %u\n", st.st_dev, st.st_ino, st.st_nlink);
+		#else
 		printf("\tDevice ID: %zu\tInode: %zu\tLinks: %zu\n", st.st_dev, st.st_ino, st.st_nlink);
+		#endif
 		
 		print_gid_uid(st);			
 
+		// https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/stat.2.html //
+		#ifdef __APPLE__
+		printf("\tAccess");
+		PRINTLN_READABLE_TIME(st.st_atimespec);
+		printf("\tModify");
+		PRINTLN_READABLE_TIME(st.st_mtimespec);
+		printf("\tCreation");
+		PRINTLN_READABLE_TIME(st.st_ctimespec);
+		#else
 		printf("\tAccess");
 		PRINTLN_READABLE_TIME(st.st_atim);
 		printf("\tModify");
 		PRINTLN_READABLE_TIME(st.st_mtim);
 		printf("\tCreation");
 		PRINTLN_READABLE_TIME(st.st_ctim);
+		#endif
 		
 		#undef OPERAND		
 	}

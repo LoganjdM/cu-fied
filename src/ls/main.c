@@ -21,7 +21,7 @@
 #include "../colors.h"
 #include "../app_info.h"
 #include "../stat/do_stat.h"
-#include "f_ext_map.h"
+#include "../f_ext_map.h"
 #include <strbuild.h>
 
 #define REALLOCARRAY_IMPLEMENTATION
