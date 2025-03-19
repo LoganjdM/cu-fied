@@ -474,7 +474,48 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 				break;
 		} return 1;
 	}
+	struct stat st = {0};
+	if (fstat(fd, &st) == -1) {
+		assert(errno != EBADF);
+		
+		printf_color(stderr, YELLOW, "Could get info on ");
+		printf_color(stderr, BLUE, "%s ", operand);
+		switch (errno) {
+			case EACCES:
+				printf_color(stderr, YELLOW, "! (do you have access to it?)\n", operand);
+				break;
+			case ENOMEM:
+				printf_color(stderr, RED, "! (Couldn't get memory!)\n", operand);
+				// > Out of memory (i.e., kernel memory) //
+				// You are fucked for other reasons if this happens //
+				exit(2);
+			case EOVERFLOW:
+				printf_color(stderr, YELLOW, "! (File's size, inode, or block count, can't be represented!)\n", operand);
+				break;
+			default:
+				printf_color(stderr, YELLOW, "! (%s)", strerror(errno));
+		} return 1;
+	}
+	if (!S_ISDIR(st.st_mode)) {
+		// careful.. dont want an RCE //
+		for (size_t i=0; i<strlen(operand); ++i) {
+			if (operand[i] == ';' || operand[i] == '|' || operand[i] == '&') {
+				printf_color(stderr, YELLOW, "Not catting file for security! Could result in remote code execution!\n");
+				goto avoid_rce;	
+			}
+		}
 
+		if(execl("/usr/bin/bat", "bat", operand, NULL)==-1) {
+			if(execl("/bin/cat", "cat", operand, NULL)==-1) {
+				printf_color(stderr, YELLOW, "Failed to cat ");
+				printf_color(stderr, BLUE, "%s", operand);
+				printf_color(stderr, YELLOW, "! (%s : %d)", strerror(errno), errno);
+				return 1;
+			}
+		} return 0;
+	}
+
+	avoid_rce:
 	if (args & ARG_RECURSIVE) {
 		queried_files.max_depth = UINT_MAX;
 		puts("Recursive file listing is not implemented yet!\n");
