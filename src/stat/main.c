@@ -135,6 +135,11 @@ void print_gid_uid(const struct stat st) {
 
 }
 
+#define PRINTLN_READABLE_TIME(tm_struct) \
+	if(!(args & ARG_NO_NERDFONT)) printf(" 󰃭"); \
+	printf(": "); \
+	printf("%s", get_readable_time(tm_struct))
+
 int main(int argc, char** argv) {
 	if (argc < 2) {
 		printf_color(stderr, YELLOW, "You need to provide at least one file argument! (check -h?)\n");
@@ -180,6 +185,14 @@ int main(int argc, char** argv) {
 		printf("\tDevice ID: %zu\tInode: %zu\tLinks: %zu\n", st.st_dev, st.st_ino, st.st_nlink);
 		
 		print_gid_uid(st);
+			
+
+		printf("\tAccess");
+		PRINTLN_READABLE_TIME(st.st_atim);
+		printf("\tModify");
+		PRINTLN_READABLE_TIME(st.st_mtim);
+		printf("\tCreation");
+		PRINTLN_READABLE_TIME(st.st_ctim);
 		
 		#undef OPERAND		
 	}
