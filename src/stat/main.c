@@ -8,6 +8,7 @@
 #include <pwd.h>
 #include <grp.h>
 
+#include "../f_ext_map.h"
 #include "../app_info.h"
 #include "../colors.h"
 #include "do_stat.h"
@@ -135,10 +136,38 @@ void print_gid_uid(const struct stat st) {
 
 }
 
+bool print_nerdfont(const char* operand, const struct stat st, table_t* f_ext_map) {
+	char* operand_copy = malloc(strlen(operand) + 1);
+	if (!operand_copy) return false;
+	strcpy(operand_copy, operand);
+	
+	char* tok = strtok(operand_copy, ".");
+	char* ext = NULL;
+	while (tok) {
+		ext = tok;
+		tok = strtok(NULL, ".");
+	} 
+
+	char* nerdfont = f_ext_map->get(f_ext_map, ext).s;
+	if (!nerdfont) {
+		if (S_ISDIR(st.st_mode)) printf_color(stdout, BLUE, " ");
+		else printf(" ");
+		
+		free(operand_copy);
+		return true;
+	}
+	
+	if (S_ISDIR(st.st_mode)) printf_color(stdout, BLUE, nerdfont);
+	else printf(nerdfont);
+	free(operand_copy);
+	return true;
+}
+
 #define PRINTLN_READABLE_TIME(tm_struct) \
 	if(!(args & ARG_NO_NERDFONT)) printf(" 󰃭"); \
 	printf(": "); \
 	printf("%s", get_readable_time(tm_struct))
+
 
 int main(int argc, char** argv) {
 	if (argc < 2) {
@@ -146,8 +175,14 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 
-	struct stat st = {0};
 	args_t args = parse_argv(argc, argv);
+	table_t* f_ext_map = NULL;
+	if (!(args & ARG_NO_NERDFONT) && !(f_ext_map = init_filetype_dict())) {
+		printf_color(stderr, RED, "Failed to allocate memory for nerdfonts based on file extensions!\n");
+		return 2;
+	}
+	
+	struct stat st = {0};
 	for (int i=1; i<argc; ++i) {
 		#define OPERAND argv[i]
 		if (ARG[0] == '-') continue;
@@ -165,9 +200,10 @@ int main(int argc, char** argv) {
 		}
 
 		if (!(args & ARG_NO_NERDFONT)) {
-			if (!S_ISDIR(st.st_mode)) printf(" ");
-			else printf_color(stdout, BLUE, " ");
+			if(!print_nerdfont(OPERAND, st, f_ext_map))
+				printf_color(stderr, YELLOW, "Failed to allocate memory for getting the nerdfont!\n");
 		}
+		
 		if (!S_ISDIR(st.st_mode)) printf("%s\n", OPERAND);
 		else printf_color(stdout, BLUE, "%s\n", OPERAND);
 		
@@ -184,8 +220,7 @@ int main(int argc, char** argv) {
 
 		printf("\tDevice ID: %zu\tInode: %zu\tLinks: %zu\n", st.st_dev, st.st_ino, st.st_nlink);
 		
-		print_gid_uid(st);
-			
+		print_gid_uid(st);			
 
 		printf("\tAccess");
 		PRINTLN_READABLE_TIME(st.st_atim);

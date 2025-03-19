@@ -188,7 +188,7 @@ pub fn build(b: *Build) !void {
     buildCli(b, "lsf", lsf, &options);
 
     // STATF
-    const statf_src_files = [_][]const u8{ "src/stat/main.c", "src/stat/do_stat.c", "src/ctypes/strbuild.c" };
+    const statf_src_files = [_][]const u8{ "src/stat/main.c", "src/stat/do_stat.c", "src/ctypes/strbuild.c", "src/ctypes/table.c" };
     const statf = buildCModule(b, &options, &statf_src_files, &cflags);
     buildCli(b, "statf", statf, &options);
 
