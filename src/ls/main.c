@@ -359,9 +359,8 @@ const char* get_nerdfont_icon(file_t f_info, table_t* f_ext_map, const args_t ar
 	while (tok) {
 		result = tok;
 		tok = strtok (NULL, ".");
-	} if((result = f_ext_map->get(f_ext_map, result).s) &&
-		 !(!strcmp(result, " ") && S_ISDIR(f_info.st.st_mode)) /*HACK TO GET RID OF `lib` DIRS */ ) return result;
-
+	} if (result && (result = f_ext_map->get(f_ext_map, result).s)) return result;
+		 
 	if(S_ISDIR(f_info.st.st_mode)) return " ";
 	else if(f_info.st.st_mode & S_IXUSR) return " ";
 	else return " ";
