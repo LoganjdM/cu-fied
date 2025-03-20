@@ -197,7 +197,7 @@ int query_files(const char* path, const struct stat* st, int typeflag, struct FT
 		couldnt_get_stat = true;
 	}
 
-   	char path_copy[strlen(path) + 1] = {};
+   	char path_copy[strlen(path) + 1];
 	strcpy(path_copy, path);
 	
 	if (file_desc->level > queried_files.max_depth) {
@@ -322,7 +322,7 @@ const char* get_descriptor_color(file_t f_info, table_t* f_ext_map, args_t args)
 		char* is_media = NULL; char* extension = NULL;
 		
 		// strtok(3) modifies the string itself, we must create a copy or our name becomes all fucked // 
-		char file_name_copy[strlen(f_info.name) + 1] = {};
+		char file_name_copy[strlen(f_info.name) + 1];
 		strcpy(file_name_copy, f_info.name);
 		
 		char* tok = strtok(file_name_copy, ".");
@@ -350,7 +350,7 @@ const char* get_nerdfont_icon(file_t f_info, table_t* f_ext_map, const args_t ar
 	if ((result = f_ext_map->get(f_ext_map, f_info.name).s)) return result;
 
 	// strtok(3) modifies the string itself, we must create a copy or our name becomes all fucked // 
-	char file_name_copy[strlen(f_info.name) + 1] = {};
+	char file_name_copy[strlen(f_info.name) + 1];
 	strcpy(file_name_copy, f_info.name);			
 
 	char* tok = strtok(file_name_copy, ".");
@@ -493,7 +493,7 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 	}
 
 	if (list_name) {
-		char* operand_copy[strlen(operand) + 1] = {};
+		char* operand_copy[strlen(operand) + 1];
 		strcpy(operand_copy, operand);
 
 		char* f_ext = "\0";
