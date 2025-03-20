@@ -197,15 +197,12 @@ int query_files(const char* path, const struct stat* st, int typeflag, struct FT
 		couldnt_get_stat = true;
 	}
 
-
-	char* path_copy = (char*)malloc(strlen(path) + 1);
-	if (!path_copy) return 1;
+   	char path_copy[strlen(path) + 1] = {};
 	strcpy(path_copy, path);
 	
 	if (file_desc->level > queried_files.max_depth) {
 		// TODO: (Contains X) //
 		if (file_desc->level > (queried_files.max_depth + 1)) {
-			free(path_copy);
 			return 0;
 		}
 		if (queried_files.len > queried_files.capacity || !queried_files.files) {
@@ -219,7 +216,6 @@ int query_files(const char* path, const struct stat* st, int typeflag, struct FT
 			else queried_files.files = (file_t*)new_ptr;
 		}
 		if (!couldnt_get_stat) queried_files.files[queried_files.len].st = *st; // < TEMP //
-		free(path_copy);
 		return 0;
 	} else {
 		if (queried_files.len > queried_files.capacity || !queried_files.files) {
@@ -237,11 +233,10 @@ int query_files(const char* path, const struct stat* st, int typeflag, struct FT
 
 	#define QUERIED_FILE queried_files.files[queried_files.len]
 	char* tok = strtok(path_copy, "/");
-	QUERIED_FILE.parent_dir = malloc(strlen(tok) + 1);
+	QUERIED_FILE.parent_dir = tok ? malloc(strlen(tok) + 1) : path_copy;
 	if (!QUERIED_FILE.parent_dir) return 1;
 	
 	strcpy(QUERIED_FILE.parent_dir, path_copy);
-	free(path_copy);
 
 	QUERIED_FILE.name = malloc(strlen(path + file_desc->base) + 1);
 	if (!QUERIED_FILE.name) return 1;
@@ -257,7 +252,7 @@ float get_simplified_file_size(const size_t f_size, char* unit, args_t args) {
 
  	// this shows ULONG_MAX on my system is 19 digits long, perfectly representable by 8 bits //
 	// int main(void) {
-	// 	printf("%f", floor(log10((double)ULONG_MAX)));
+	// 	printf("%f", floor(log10((double)ULONG_MAX))+1);
 	// 	return 0;
 	// }
 	uint8_t exponent = 0;
@@ -453,8 +448,7 @@ bool condition_isdir(mode_t stat) { return S_ISDIR(stat); }
 bool condition_isndir(mode_t stat) { return !S_ISDIR(stat); }
 bool condition_dontcare(mode_t stat) { (void)stat; return false; }		
 
-// evil bool... aka this is for return code, so 0 on success, 1 on fail.. just inverse is all //
-bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsize tty_dimensions, const args_t args) {
+bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsize tty_dimensions, const args_t args, const bool list_name) {
 	int fd = open(operand, 0);
 	if (fd == -1) {
 		printf_color(stderr, YELLOW, "Could not list ");
@@ -474,6 +468,7 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 				break;
 		} return 1;
 	}
+	// something zig is doing in the background with memset.zig(line 21) with C array initalization in zigstd causes illegal cpu instruction when testing with valgirind, preventing auctually good debugging of memory issues :\ //
 	struct stat st = {0};
 	if (fstat(fd, &st) == -1) {
 		assert(errno != EBADF);
@@ -496,11 +491,28 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 				printf_color(stderr, YELLOW, "! (%s)", strerror(errno));
 		} return 1;
 	}
+
+	if (list_name) {
+		char* operand_copy[strlen(operand) + 1] = {};
+		strcpy(operand_copy, operand);
+
+		char* f_ext = "\0";
+		char* tok = strtok(operand_copy, ".");
+		while(tok) {
+			f_ext = tok;
+			tok = strtok(NULL, ".");
+		}
+		const char* nerdicon = f_ext_map->get(f_ext_map, f_ext).s;
+		const char* not_found_nerdicon = S_ISDIR(st.st_mode) ? "" : "";
+		printf_color(stdout, S_ISDIR(st.st_mode) ? BLUE : RESET, "%s %s:\n", nerdicon ? nerdicon : not_found_nerdicon, operand);
+	}
+	
 	if (!S_ISDIR(st.st_mode)) {
 		// careful.. dont want an RCE //
 		for (size_t i=0; i<strlen(operand); ++i) {
 			if (operand[i] == ';' || operand[i] == '|' || operand[i] == '&') {
 				printf_color(stderr, YELLOW, "Not catting file for security! Could result in remote code execution!\n");
+				fflush(stderr); // fuck sake //
 				goto avoid_rce;	
 			}
 		}
@@ -522,7 +534,7 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 		goto TODO;
 	}
 	
-	int nsfw = nftw(operand, &query_files, fd, 0);
+	int nsfw = nftw(operand, &query_files, fd, 10);
 	if (nsfw == -1 || errno) {
 		switch (errno) {
 			case EOVERFLOW:
@@ -556,20 +568,30 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 		succ = list_files(queried_files.files, longest_fdescriptor, queried_files.len, tty_dimensions.ws_col / longest_fdescriptor, f_ext_map, condition_isndir, args);
 		succ |= list_files(queried_files.files, longest_fdescriptor, queried_files.len, tty_dimensions.ws_col / longest_fdescriptor, f_ext_map, condition_isdir, args);
 	}
-	
-	if(!succ) {
-		printf_color(stderr, RED, "Failed to allocate memory for showing file size!\n"); // only possible failure
-	}
+
+	// only possible failure //
+	if(!succ)
+		printf_color(stderr, RED, "Failed to allocate memory for showing file size!\n");
+		
 	// free everything //
 	TODO:
-	for(size_t i=0; i<queried_files.len; ++i) {
-		#define QUERIED_FILE queried_files.files[i]
-		free(QUERIED_FILE.name);
-		free(QUERIED_FILE.parent_dir);
-		#undef QUERIED_FILE
-	} free(queried_files.files);
-	
-	return succ;
+	// this car is too bumpy for me to see what the fuck this double free is (im currently omw to alabama rn) //
+	// for(size_t i=0; i<queried_files.len; ++i) {
+		// #define QUERIED_FILE queried_files.files[i]
+		// if(QUERIED_FILE.name) {
+			// printf("name : %p\n", QUERIED_FILE.name);
+		    // free(QUERIED_FILE.name);
+		    // QUERIED_FILE.name = NULL;
+		// }
+		// if(QUERIED_FILE.parent_dir) {
+			// printf("parent dir : %p\n", QUERIED_FILE.parent_dir);
+			// free(QUERIED_FILE.parent_dir);
+			// QUERIED_FILE.parent_dir = NULL;
+		// }
+		// #undef QUERIED_FILE
+	// } free(queried_files.files);
+
+	return !succ;
 }
 
 int main(int argc, char** argv) {
@@ -595,7 +617,7 @@ int main(int argc, char** argv) {
 	uint8_t longest_fname = 0, retcode = 0;
 	size_t largest_fsize = 0, f_count = 0;
 	if (operand_count == 1) {
-		retcode = (uint8_t)query_and_list(".", f_ext_map, tty_dimensions, args);
+		retcode = (uint8_t)query_and_list(".", f_ext_map, tty_dimensions, args, false);
 	} else {
 		for (int i=1; i<argc; ++i) {
 			if (operand_count == 0) break; // we can ignore the rest of the args //
@@ -604,10 +626,7 @@ int main(int argc, char** argv) {
 			if (ARG[0] == '-') continue;
 			else --operand_count;
 
-			const char* folder_icon = args & ARG_NO_NERDFONTS ? "" : "";
-			printf_color(stdout, BLUE, "%s %s:\n", folder_icon, ARG);
-
-			retcode += query_and_list(ARG, f_ext_map, tty_dimensions, args);
+			retcode += query_and_list(ARG, f_ext_map, tty_dimensions, args, true);
 		}
 	}
 	if(f_ext_map) ht_free(f_ext_map);
