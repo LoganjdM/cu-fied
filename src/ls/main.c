@@ -534,7 +534,7 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 		goto TODO;
 	}
 	
-	int nsfw = nftw(operand, &query_files, fd, 10);
+	int nsfw = nftw(operand, &query_files, fd, 0);
 	if (nsfw == -1 || errno) {
 		switch (errno) {
 			case EOVERFLOW:
