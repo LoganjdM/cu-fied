@@ -101,5 +101,9 @@ table_t* init_filetype_dict(void) {
 	result->put(result, "txt", " ");
 	result->put(result, "kdenlive", "󰗀 ");
 	result->put(result, "log", " ");
+	result->put(result, "zip", " ");
+	result->put(result, "tar", "󰛫 ");
+	result->put(result, "gz", " ");
+	result->put(result, "xz", " ");
 	return result;
 }

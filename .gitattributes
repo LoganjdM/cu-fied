@@ -1,3 +1,4 @@
 * text=auto eol=lf
 
 /src/touch/fileconts/* lingust-generated=true
+/src/curl.h lingust-generated=true

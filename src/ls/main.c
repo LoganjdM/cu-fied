@@ -442,12 +442,13 @@ bool list_files(const file_t* files,
 		for (size_t i=longest_descriptor-descriptor_len; i>0; --i) sb_append(&sb, " ");
 		++files_printed;
 		// i tried doing this based off bytes printed, gave issues. also same with using `i % files_per_row` as it gave some segfault i dont understand to be real with you //
-		if(files_printed > files_per_row) {
+		if(files_printed >= files_per_row) {
 			printf("%s\n", sb.str); files_printed = 0;
 		} else printf("%s", sb.str);
 		free(sb.str);
 	}
 	fflush(stdout);
+	putchar('\n');
 	return true;
 }
 
@@ -633,7 +634,6 @@ int main(int argc, char** argv) {
 			#define ARG argv[i]
 			if (ARG[0] == '-') continue;
 			else --operand_count;
-			puts(ARG);
 
 			retcode += query_and_list(ARG, f_ext_map, tty_dimensions, args, true);
 		}
