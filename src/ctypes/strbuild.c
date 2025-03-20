@@ -15,10 +15,9 @@ size_t sb_append(strbuild_t* sb, const char* appendee) {
 	const size_t appendlen = strlen(appendee);
 
 	// TODO?: we should prob use realloc() but realloc was causing issues, so we just create an entirely new string //
-	char* newstr = (char*)malloc(sb->len+appendlen+1); // +1 for \0
+	void* newstr = realloc(sb->str, sb->len+appendlen+2); // +1 for \0
 	if(!newstr) return 0;
-	strcpy(newstr, sb->str);
-	free(sb->str); sb->str = newstr;
+	sb->str = newstr;
 
 	sb->last = mempcpy(sb->str+sb->len, appendee, appendlen);
 	sb->len += appendlen;

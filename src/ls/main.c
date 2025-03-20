@@ -360,7 +360,7 @@ const char* get_nerdfont_icon(file_t f_info, table_t* f_ext_map, const args_t ar
 		result = tok;
 		tok = strtok (NULL, ".");
 	} if (result && (result = f_ext_map->get(f_ext_map, result).s)) return result;
-		 
+
 	if(S_ISDIR(f_info.st.st_mode)) return " ";
 	else if(f_info.st.st_mode & S_IXUSR) return " ";
 	else return " ";
