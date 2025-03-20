@@ -236,7 +236,13 @@ int query_files(const char* path, const struct stat* st, int typeflag, struct FT
 	QUERIED_FILE.parent_dir = tok ? malloc(strlen(tok) + 1) : path_copy;
 	if (!QUERIED_FILE.parent_dir) return 1;
 
-	// don't copy if the memory addresses are the same //
+	// ==14242== Source and destination overlap in strcpy(0x1fff0002d0, 0x1fff0002d0)
+	// ==14242==    at 0x484696F: strcpy (vg_replace_strmem.c:553)
+	// ==14242==    by 0x10AC52: query_files (main.c:241)
+	// ==14242==    by 0x4A33138: ftw_dir (ftw.c:509)
+	// ==14242==    by 0x4A339D5: ftw_startup (ftw.c:771)
+	// ==14242==    by 0x10C5FC: query_and_list (main.c:538)
+	// ==14242==    by 0x10CA9E: main (main.c:630)
 	if(QUERIED_FILE.parent_dir == path_copy) 
 		strcpy(QUERIED_FILE.parent_dir, path_copy);
 
