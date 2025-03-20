@@ -235,8 +235,10 @@ int query_files(const char* path, const struct stat* st, int typeflag, struct FT
 	char* tok = strtok(path_copy, "/");
 	QUERIED_FILE.parent_dir = tok ? malloc(strlen(tok) + 1) : path_copy;
 	if (!QUERIED_FILE.parent_dir) return 1;
-	
-	strcpy(QUERIED_FILE.parent_dir, path_copy);
+
+	// don't copy if the memory addresses are the same //
+	if(QUERIED_FILE.parent_dir == path_copy) 
+		strcpy(QUERIED_FILE.parent_dir, path_copy);
 
 	QUERIED_FILE.name = malloc(strlen(path + file_desc->base) + 1);
 	if (!QUERIED_FILE.name) return 1;
@@ -346,7 +348,7 @@ const char* get_descriptor_color(file_t f_info, table_t* f_ext_map, args_t args)
 const char* get_nerdfont_icon(file_t f_info, table_t* f_ext_map, const args_t args) {
 	if (args & ARG_NO_NERDFONTS) return "\0";
 
-	char* result = NULL;
+	char* result = "\0";
 	if ((result = f_ext_map->get(f_ext_map, f_info.name).s)) return result;
 
 	// strtok(3) modifies the string itself, we must create a copy or our name becomes all fucked // 
@@ -493,7 +495,7 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 	}
 
 	if (list_name) {
-		char* operand_copy[strlen(operand) + 1];
+		char operand_copy[strlen(operand) + 1];
 		strcpy(operand_copy, operand);
 
 		char* f_ext = "\0";

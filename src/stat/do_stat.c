@@ -39,7 +39,7 @@ char* get_readable_time(const struct timespec st_tim) {
 	assert(local_tm);
 	
 	// char buf[restrict 26] //
-	char* t_buf = ctime(&local_tm->tm_sec);
+	char* t_buf = ctime((time_t*)&local_tm->tm_sec);
 	assert(errno != EOVERFLOW);
 	return t_buf;
 }
