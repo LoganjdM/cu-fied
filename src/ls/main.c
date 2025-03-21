@@ -476,7 +476,7 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 				break;
 		} return 1;
 	}
-	// something zig is doing in the background with memset.zig(line 21) with C array initalization in zigstd causes illegal cpu instruction when testing with valgirind, preventing auctually good debugging of memory issues :\ //
+	
 	struct stat st = {0};
 	if (fstat(fd, &st) == -1) {
 		assert(errno != EBADF);
