@@ -17,6 +17,9 @@ With that out of the way, you only need these dependencies:
 # Build the project
 $ zig build
 
+# Build the project for release
+$ zig build --release=safe -Dcpu=baseline
+
 # Run a specific program, e.g. `lsf`
 $ zig build run-<program>
 
