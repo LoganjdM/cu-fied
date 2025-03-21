@@ -448,7 +448,6 @@ bool list_files(const file_t* files,
 		free(sb.str);
 	}
 	fflush(stdout);
-	putchar('\n');
 	return true;
 }
 
