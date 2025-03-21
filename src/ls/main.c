@@ -525,12 +525,15 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 			}
 		}
 
-		if(execl("/usr/bin/bat", "bat", operand, NULL)==-1) {
-			if(execl("/bin/cat", "cat", operand, NULL)==-1) {
-				printf_color(stderr, YELLOW, "Failed to cat ");
+		// TODO: account for enviroment variables... non standards distros exist, IE: nix //
+		if(execl("/usr/bin/bat", "bat", "-p", operand, NULL)==-1) {
+			if (execl("/usr/bin/more", "more", "-f", operand, NULL)==-1) {
+				printf_color(stderr, YELLOW, "Failed to list ");
 				printf_color(stderr, BLUE, "%s", operand);
-				printf_color(stderr, YELLOW, "! (%s : %d)", strerror(errno), errno);
-				return 1;
+				switch (errno) {
+					default:
+						printf_color(stderr, YELLOW, "! (%s : %d)", strerror(errno), errno);
+				}
 			}
 		} return 0;
 	}
