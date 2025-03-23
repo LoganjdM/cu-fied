@@ -15,6 +15,8 @@ const Params = struct {
     force: bool = false,
     sources: ?[]const [:0]const u8 = null,
     destination: ?[:0]const u8 = null,
+
+    arena: std.heap.ArenaAllocator,
 };
 
 fn getLongestOperand(files: []const []const u8) u64 {
@@ -26,17 +28,25 @@ fn getLongestOperand(files: []const []const u8) u64 {
 }
 
 fn parseArgs(args: *ArgIterator, allocator: Allocator) error{ OutOfMemory, BadArgs }!Params {
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    const aAllocator = arena.allocator();
+
     var positionals = std.ArrayListUnmanaged([:0]const u8){};
-    // or iterate over positionals.items[i] != NULL //
-    var result: Params = .{};
+    var result: Params = .{ .arena = arena };
 
     while (args.next()) |arg| {
         if (std.mem.eql(u8, arg, "--help")) {
-            return Params{ .help = true };
+            result.help = true;
+
+            return result;
         } else if (std.mem.eql(u8, arg, "-h")) {
-            return Params{ .help = true };
+            result.help = true;
+
+            return result;
         } else if (std.mem.eql(u8, arg, "--version")) {
-            return Params{ .version = true };
+            result.version = true;
+
+            return result;
         } else if (std.mem.eql(u8, arg, "-f")) {
             result.force = true;
         } else if (std.mem.eql(u8, arg, "--force")) {
@@ -48,11 +58,7 @@ fn parseArgs(args: *ArgIterator, allocator: Allocator) error{ OutOfMemory, BadAr
         } else if (arg[0] == '-') {
             std.log.warn("Unknown option: {?s}", .{arg});
         } else {
-            // FIXME: you handle this incorrectly and leak memory //
-            // i'd fix it but I spent god knows how long fucking with coerccing zig types and was going insane //
-            // maybe do arena allocator then memcpy on sources and dest? //
-            const pos = try positionals.addOne(allocator);
-            pos.* = arg;
+            try positionals.append(aAllocator, arg);
         }
     }
 
@@ -109,11 +115,14 @@ pub fn main() !u8 {
     };
     defer if (is_debug) assert(debug_allocator.deinit() == .ok);
 
-    var args_iter = try std.process.ArgIterator.initWithAllocator(gpa);
+    var args_iter = try std.process.argsWithAllocator(gpa);
     defer args_iter.deinit();
+
+    std.log.debug("args: {s}", .{std.os.argv});
 
     _ = args_iter.next();
     const args = try parseArgs(&args_iter, gpa);
+    defer args.arena.deinit();
 
     if (args.help) {
         try std.io.getStdOut().writer().print(@embedFile("help.txt"), .{});
