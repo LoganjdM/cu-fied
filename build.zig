@@ -92,14 +92,22 @@ fn buildZigModule(b: *Build, options: *const SharedBuildOptions, main: LazyPath,
 
 pub fn build(b: *Build) !void {
     // General options
-    const cflags = [_][]const u8{
-        "-std=c23",
-        if (b.release_mode == .off) "-g" else "",
-        if (b.release_mode == .safe) "-fstack-protector-all" else "",
-        if (b.release_mode == .safe) "-O" else "",
-        "-D_GNU_SOURCE",
-        "-DC23",
-    };
+    var cflags: std.BoundedArray([]const u8, 16) = .{};
+    cflags.appendSliceAssumeCapacity(&.{"-std=c23"});
+
+    switch (b.release_mode) {
+        .off => {
+            cflags.appendSliceAssumeCapacity(&.{"-g"});
+        },
+        .any => {},
+        .fast => {},
+        .safe => {
+            cflags.appendSliceAssumeCapacity(&.{ "-fstack-protector-all", "-O" });
+        },
+        .small => {},
+    }
+
+    cflags.appendSliceAssumeCapacity(&.{ "-D_GNU_SOURCE", "-DC23" });
 
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseFast });
@@ -184,17 +192,17 @@ pub fn build(b: *Build) !void {
 
     // LSF
     const lsf_src_files = [_][]const u8{ "src/ls/main.c", "src/stat/do_stat.c", "src/ctypes/strbuild.c", "src/ctypes/table.c" };
-    const lsf = buildCModule(b, &options, &lsf_src_files, &cflags);
+    const lsf = buildCModule(b, &options, &lsf_src_files, cflags.constSlice());
     buildCli(b, "lsf", lsf, &options);
 
     // STATF
     const statf_src_files = [_][]const u8{ "src/stat/main.c", "src/stat/do_stat.c", "src/ctypes/strbuild.c", "src/ctypes/table.c" };
-    const statf = buildCModule(b, &options, &statf_src_files, &cflags);
+    const statf = buildCModule(b, &options, &statf_src_files, cflags.constSlice());
     buildCli(b, "statf", statf, &options);
 
     // TOUCHF
     const touchf_src_files = [_][]const u8{ "src/touch/main.c", "src/ctypes/table.c" };
-    const touchf = buildCModule(b, &options, &touchf_src_files, &cflags);
+    const touchf = buildCModule(b, &options, &touchf_src_files, cflags.constSlice());
     buildCli(b, "touchf", touchf, &options);
 
     // MVF
