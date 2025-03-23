@@ -182,7 +182,7 @@ int query_files(const char* path, const struct stat* st, int typeflag, struct FT
 			case EPERM: // most likely failure //
 				couldnt_get_stat = true;
 				break;
-			case EACCES: 
+			case EACCES:
 				couldnt_get_stat = true;
 				break;
 			case ELOOP:
@@ -190,7 +190,7 @@ int query_files(const char* path, const struct stat* st, int typeflag, struct FT
 				break;
 			default: // it is probably fine //
  				couldnt_get_stat = true;
-				break; 
+				break;
 		}
 	} else if (typeflag == FTW_SLN) {
 		errno = ELOOP;
@@ -199,7 +199,7 @@ int query_files(const char* path, const struct stat* st, int typeflag, struct FT
 
    	char path_copy[strlen(path) + 1];
 	strcpy(path_copy, path);
-	
+
 	if (file_desc->level > queried_files.max_depth) {
 		// TODO: (Contains X) //
 		if (file_desc->level > (queried_files.max_depth + 1)) {
@@ -243,14 +243,14 @@ int query_files(const char* path, const struct stat* st, int typeflag, struct FT
 	// ==14242==    by 0x4A339D5: ftw_startup (ftw.c:771)
 	// ==14242==    by 0x10C5FC: query_and_list (main.c:538)
 	// ==14242==    by 0x10CA9E: main (main.c:630)
-	if(QUERIED_FILE.parent_dir == path_copy) 
+	if(QUERIED_FILE.parent_dir == path_copy)
 		strcpy(QUERIED_FILE.parent_dir, path_copy);
 
 	QUERIED_FILE.name = malloc(strlen(path + file_desc->base) + 1);
 	if (!QUERIED_FILE.name) return 1;
 	strcpy(QUERIED_FILE.name, path + file_desc->base);
 	#undef QUERIED_FILE
-	
+
 	++queried_files.len;
 	return 0;
 }
@@ -279,7 +279,7 @@ float get_simplified_file_size(const size_t f_size, char* unit, args_t args) {
 		// I better never see this shit be incorrect because your file happens to be bigger than a yottabyte fucking galactic machine //
 		case 11: *unit = 'Y'; break;
 	}
-	
+
 	// si(x) = x/10^(floor∘log₁₀)(x)
 	// i spent like 30 minutes figuring that equation out
 	u(2) hr_arg = HR_ARG(args);
@@ -296,7 +296,7 @@ size_t get_longest_fdescriptor(const file_t* files, const size_t f_count, uint8_
 		if (fname_len > *longest_fname) *longest_fname = fname_len;
 		if (files[i].st.st_size > *largest_fsize) *largest_fsize = files[i].st.st_size;
 	}
-	
+
 	size_t result = (size_t)*longest_fname + 3;
 
 	u(2) hr_arg = HR_ARG(args);
@@ -328,11 +328,11 @@ const char* get_descriptor_color(file_t f_info, table_t* f_ext_map, args_t args)
 
 	if (!(args & ARG_NO_NERDFONTS)) {
 		char* is_media = NULL; char* extension = NULL;
-		
-		// strtok(3) modifies the string itself, we must create a copy or our name becomes all fucked // 
+
+		// strtok(3) modifies the string itself, we must create a copy or our name becomes all fucked //
 		char file_name_copy[strlen(f_info.name) + 1];
 		strcpy(file_name_copy, f_info.name);
-		
+
 		char* tok = strtok(file_name_copy, ".");
 		while(tok) {
 			extension = tok;
@@ -357,9 +357,9 @@ const char* get_nerdfont_icon(file_t f_info, table_t* f_ext_map, const args_t ar
 	char* result = "\0";
 	if ((result = f_ext_map->get(f_ext_map, f_info.name).s)) return result;
 
-	// strtok(3) modifies the string itself, we must create a copy or our name becomes all fucked // 
+	// strtok(3) modifies the string itself, we must create a copy or our name becomes all fucked //
 	char file_name_copy[strlen(f_info.name) + 1];
-	strcpy(file_name_copy, f_info.name);			
+	strcpy(file_name_copy, f_info.name);
 
 	char* tok = strtok(file_name_copy, ".");
 	while (tok) {
@@ -376,7 +376,7 @@ const char* get_nerdfont_icon(file_t f_info, table_t* f_ext_map, const args_t ar
 bool list_files(const file_t* files,
 				const size_t longest_descriptor, const size_t f_count,
 				const uint32_t files_per_row,
-				table_t* f_ext_map, 
+				table_t* f_ext_map,
 				bool (*condition)(mode_t),
 				args_t args) {
 	assert(f_ext_map || (args & ARG_NO_NERDFONTS ));
@@ -404,7 +404,7 @@ bool list_files(const file_t* files,
 			descriptor_len += sb_append(&sb, get_readable_mode(FILE.st.st_mode));
 			descriptor_len += sb_append(&sb, ">");
 		}
-	
+
 		// ehh _BitInt(2) is nice and explicit but I'm aware compile will make this an i8 //
 		u(2) hr_arg = HR_ARG(args);
 		if (hr_arg) {
@@ -453,7 +453,7 @@ bool list_files(const file_t* files,
 
 bool condition_isdir(mode_t stat) { return S_ISDIR(stat); }
 bool condition_isndir(mode_t stat) { return !S_ISDIR(stat); }
-bool condition_dontcare(mode_t stat) { (void)stat; return false; }		
+bool condition_dontcare(mode_t stat) { (void)stat; return false; }
 
 bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsize tty_dimensions, const args_t args, const bool list_name) {
 	int fd = open(operand, 0);
@@ -470,16 +470,16 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 			case EINVAL:
 				printf_color(stderr, YELLOW, "! (is it a valid path?)\n", operand);
 				break;
-			default: 
+			default:
 				printf_color(stderr, YELLOW, "!\n", operand);
 				break;
 		} return 1;
 	}
-	
+
 	struct stat st = {0};
 	if (fstat(fd, &st) == -1) {
 		assert(errno != EBADF);
-		
+
 		printf_color(stderr, YELLOW, "Could get info on ");
 		printf_color(stderr, BLUE, "%s ", operand);
 		switch (errno) {
@@ -513,18 +513,18 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 		const char* not_found_nerdicon = S_ISDIR(st.st_mode) ? "" : "";
 		printf_color(stdout, S_ISDIR(st.st_mode) ? BLUE : RESET, "%s %s:\n", nerdicon ? nerdicon : not_found_nerdicon, operand);
 	}
-	
+
 	if (!S_ISDIR(st.st_mode)) {
 		// careful.. dont want an RCE //
 		for (size_t i=0; i<strlen(operand); ++i) {
 			if (operand[i] == ';' || operand[i] == '|' || operand[i] == '&') {
 				printf_color(stderr, YELLOW, "Not catting file for security! Could result in remote code execution!\n");
 				fflush(stderr); // fuck sake //
-				goto avoid_rce;	
+				goto avoid_rce;
 			}
 		}
 
-		// TODO: account for enviroment variables... non standards distros exist, IE: nix //
+		// TODO: account for environment variables... non-standard distros exist, ie Nix //
 		if(execl("/usr/bin/bat", "bat", "-p", operand, NULL)==-1) {
 			if (execl("/usr/bin/more", "more", "-f", operand, NULL)==-1) {
 				printf_color(stderr, YELLOW, "Failed to list ");
@@ -543,13 +543,13 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 		puts("Recursive file listing is not implemented yet!\n");
 		goto TODO;
 	}
-	
+
 	int nsfw = nftw(operand, &query_files, 0, 0);
 	close(fd);
 	if (nsfw == -1 || errno) {
 		switch (errno) {
 			case EOVERFLOW:
-				printf_color(stderr, RED, "Failed to allocate memory for files! (File capacity overflowed!)\n"); 
+				printf_color(stderr, RED, "Failed to allocate memory for files! (File capacity overflowed!)\n");
 				return 1;
 			case ENOMEM:
 				printf_color(stderr, RED, "Failed to allocate memory for files! (Ran out of memory!)\n");
@@ -569,7 +569,7 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 		}
 	}
 
-	uint8_t longest_fname = 0; 
+	uint8_t longest_fname = 0;
 	size_t largest_fsize = 0;
 	const size_t longest_fdescriptor = get_longest_fdescriptor(queried_files.files, queried_files.len, &longest_fname, &largest_fsize, args);
 	bool succ = 1;
@@ -583,7 +583,7 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 	// only possible failure //
 	if(!succ)
 		printf_color(stderr, RED, "Failed to allocate memory for showing file size!\n");
-		
+
 	// free everything //
 	TODO:
 	// this car is too bumpy for me to see what the fuck this double free is (im currently omw to alabama rn) //
@@ -624,7 +624,7 @@ int main(int argc, char** argv) {
 			return 1;
 		}
 	}
-	
+
 	uint8_t longest_fname = 0, retcode = 0;
 	size_t largest_fsize = 0, f_count = 0;
 	if (operand_count == 1) {
