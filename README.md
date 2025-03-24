@@ -14,15 +14,21 @@ With that out of the way, you only need these dependencies:
 ### Helpful commands
 
 ```sh
-# Build the project
+# Build all of the programs
 $ zig build
 
 # Build the project for release
-$ zig build --release=safe -Dcpu=baseline
+$ zig build --release=safe -Dcpu=baseline -Demit-man-pages
 
 # Run a specific program, e.g. `lsf`
 $ zig build run-<program>
 
-# Generate man pages (requires help2man to be installed on your system)
-$ zig build help2man
+# Generate man pages as well (requires help2man to be installed on your system)
+$ zig build -Demit-man-pages
+
+# Format project
+$ zig build fmt
+
+# Synchronize shared information
+$ zig build write-info
 ```
