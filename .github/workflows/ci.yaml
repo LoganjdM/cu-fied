@@ -37,6 +37,10 @@ jobs:
           - x86_64-macos
           - aarch64-macos
 
+        include:
+          - target: x86_64-linux-gnu
+            zig-flags: -Demit-man-pages
+
     steps:
       - name: 📚 Git checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -53,7 +57,7 @@ jobs:
         if: ${{ matrix.target == 'x86_64-linux-gnu' }}
         run: sudo apt-get install -y help2man
       - name: 🔧 Build
-        run: zig build -Dtarget=${{ matrix.target }} ${{ matrix.target == 'x86_64-linux-gnu' && '-Demit-man-pages' || '' }}
+        run: zig build -Dtarget=${{ matrix.target }} ${{ matrix.zig-flags }}
 
   formatting:
     name: Format
