@@ -8,10 +8,6 @@ const builtin = @import("builtin");
 fn addBuildSteps(b: *Build, name: []const u8, exe: *Step.Compile) void {
     b.installArtifact(exe);
 
-    if (exe.rootModuleTarget().os.tag != b.graph.host.result.os.tag) {
-        return;
-    }
-
     const run_exe = b.addRunArtifact(exe);
     if (b.args) |args| run_exe.addArgs(args);
 
@@ -110,16 +106,12 @@ pub fn build(b: *Build) !void {
     cflags.appendSliceAssumeCapacity(&.{ "-D_GNU_SOURCE", "-DC23" });
 
     const target = b.standardTargetOptions(.{});
-    const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseFast });
+    const optimize = b.standardOptimizeOption(.{
+        .preferred_optimize_mode = .ReleaseFast,
+    });
 
-    const no_bin = b.option(bool, "no-bin", "Don't emit binaries") orelse false;
+    const no_bin = b.option(bool, "no-bin", "Do not emit binaries") orelse false;
     const emit_man = b.option(bool, "emit-man-pages", "Generate man pages using GNU `help2man`") orelse false;
-
-    const target_os = target.result.os.tag;
-    const current_os = builtin.os.tag;
-    if (emit_man and target_os != current_os) {
-        return error.Unsupported;
-    }
 
     // TODO: grab `.version` in build.zig.zon (if it can be done 0.15.0, ziglang/zig#22775).
     const version = "0.0.0";
