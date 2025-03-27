@@ -1,7 +1,7 @@
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <unistd.h>
-// #include <dirent.h>
+#include <dirent.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
@@ -11,8 +11,7 @@
 #include <stdio.h>
 #include <math.h> // floor() and log10()
 #include <fcntl.h>
-// ftw was abit hard to find info online, the best you'll get is /usr/include/ftw.h header and ftw(3) manpage //
-#include <ftw.h>
+#include <alloca.h>
 // this is not how to properly see if this is C23 but oh well //
 #ifndef C23
 #	include <stdbool.h>
@@ -154,105 +153,79 @@ args_t parse_argv(const int argc, char** argv, uint32_t* operant_count) {
 
 
 typedef struct {
-	char* parent_dir;
-	char* name;
-	struct stat st;
+	char** dir; 
+	char* name/*[256] <- this long, but to avoid sigsev we use alloca(3)*/;
+	struct stat stat;
+
+	bool ok_st;
+	char* link;
 } file_t;
 
-// mb eli, tried to to keep 0 global vars besides errno here since ik you don't like them
-// but because ftw(3) works on a callback function, kinda cant for this one var //
-struct files_query {
-	file_t* files;
-	size_t capacity;
+typedef struct { 
+	void* elems;
 	size_t len;
-	uint32_t max_depth;
-};
-struct files_query queried_files = {NULL, 32, 0, 1};
+	size_t cap;
+} da_t;
 
-// FIXME: why the fuck does ntfw just exits? i don't tell it to.. it prevents listing things like `/`, my brain is jumbled rn, ima go play ultakill and i'll get back at it //
-int query_files(const char* path, const struct stat* st, int typeflag, struct FTW* file_desc) {
+bool query_files(char* path, const int fd, 
+				da_t* da_files, da_t* da_fd,
+				const size_t recurse) {
 	// sanity checks //
-	bool couldnt_get_stat = false;
-	if (typeflag == FTW_NS) {
-		// I dont think nftw() sets errno, but open() will //
-		int fd = open(path, 0);
-		if (fd != -1) close(fd);
-		assert(errno != EBADF); // EBADF shouldn't happen //
-		switch (errno) {
-			case EPERM: // most likely failure //
-				couldnt_get_stat = true;
-				break;
-			case EACCES:
-				couldnt_get_stat = true;
-				break;
-			case ELOOP:
-				couldnt_get_stat = true;
-				break;
-			default: // it is probably fine //
- 				couldnt_get_stat = true;
-				break;
-		}
-	} else if (typeflag == FTW_SLN) {
-		errno = ELOOP;
-		couldnt_get_stat = true;
-	}
+	assert(fd != -1);
+	assert(da_files);
+	assert(da_fd);
+	assert(path);
 
-   	char path_copy[strlen(path) + 1];
-	strcpy(path_copy, path);
+	if (recurse > 0) return true;
 
-	if (file_desc->level > queried_files.max_depth) {
-		// TODO: (Contains X) //
-		if (file_desc->level > (queried_files.max_depth + 1)) {
-			return 0;
-		}
-		if (queried_files.len > queried_files.capacity || !queried_files.files) {
-			if ((queried_files.capacity << 1) < queried_files.capacity) {
-				// overflow! (I really hope zig compiler doesn't fuck with me by killing the program here) //
+	DIR* dfp = fdopendir(fd);
+	if (!dfp) return false;
+	
+	struct dirent* d_stream = NULL;
+	for (; (d_stream = readdir(dfp)); ++da_files->len) {
+		#define FILE ((file_t*)da_files->elems)[da_files->len - 1]
+
+		if (da_files->len > da_files->cap) {
+			if (da_files->cap > da_files->cap << 1) {
 				errno = EOVERFLOW;
-				return 1;
-			} queried_files.capacity <<= 1;
-			void* new_ptr = reallocarray(queried_files.files, queried_files.capacity, sizeof(file_t));
-			if (!new_ptr) return 1;
-			else queried_files.files = (file_t*)new_ptr;
+				return false;
+			} da_files->cap <<= 1;
+
+			void* np = reallocarray(da_files->elems, da_files->cap, sizeof(file_t));
+			if (!np) return false;
+			da_files->elems = (file_t*)np;
+		} if (da_fd->len > da_fd->cap) {
+			// closing is an expensive operation. so instead we make use of close_range() syscall // 
+			close_range(((unsigned int*)da_fd->elems)[0], ((unsigned int*)da_fd->elems)[da_fd->cap - 1], 0);
+			da_fd->len = 0;
 		}
-		if (!couldnt_get_stat) queried_files.files[queried_files.len].st = *st; // < TEMP //
-		return 0;
-	} else {
-		if (queried_files.len > queried_files.capacity || !queried_files.files) {
-			if ((queried_files.capacity << 1) < queried_files.capacity) {
-				// overflow! (I really hope zig compiler doesn't fuck with me by kill the program here) //
-				errno = EOVERFLOW;
-				return 1;
-			} queried_files.capacity <<= 1;
-			void* new_ptr = reallocarray(queried_files.files, queried_files.capacity, sizeof(file_t));
-			if (!new_ptr) return 1;
-			else queried_files.files = (file_t*)new_ptr;
-		}
-		if (!couldnt_get_stat) queried_files.files[queried_files.len].st = *st;
-	}
 
-	#define QUERIED_FILE queried_files.files[queried_files.len]
-	char* tok = strtok(path_copy, "/");
-	QUERIED_FILE.parent_dir = tok ? malloc(strlen(tok) + 1) : path_copy;
-	if (!QUERIED_FILE.parent_dir) return 1;
+		FILE.dir = &path;
+		FILE.name = alloca(256);
+		strcpy(FILE.name, d_stream->d_name);
 
-	// ==14242== Source and destination overlap in strcpy(0x1fff0002d0, 0x1fff0002d0)
-	// ==14242==    at 0x484696F: strcpy (vg_replace_strmem.c:553)
-	// ==14242==    by 0x10AC52: query_files (main.c:241)
-	// ==14242==    by 0x4A33138: ftw_dir (ftw.c:509)
-	// ==14242==    by 0x4A339D5: ftw_startup (ftw.c:771)
-	// ==14242==    by 0x10C5FC: query_and_list (main.c:538)
-	// ==14242==    by 0x10CA9E: main (main.c:630)
-	if(QUERIED_FILE.parent_dir == path_copy)
-		strcpy(QUERIED_FILE.parent_dir, path_copy);
+		char* fullpath = malloc(strlen(FILE.dir)+strlen(FILE.name)+2);
+		if (!fullpath) return false;
 
-	QUERIED_FILE.name = malloc(strlen(path + file_desc->base) + 1);
-	if (!QUERIED_FILE.name) return 1;
-	strcpy(QUERIED_FILE.name, path + file_desc->base);
-	#undef QUERIED_FILE
+		int fd = open(fullpath, 0);
+		if (fd == -1) continue;
+		
+		((int*)da_fd->elems)[da_fd->len] = fd;
+		++da_fd->len;
 
-	++queried_files.len;
-	return 0;
+		struct stat st = {0};
+		FILE.ok_st = fstat(fd, &st) != -1;
+		FILE.stat = st;
+
+		if(FILE.ok_st && S_ISDIR(FILE.stat.st_mode)) {
+			if (!query_files(fullpath, fd, da_files, da_fd, recurse - 1))
+				return false;
+		} else free(fullpath);
+
+		#undef FILE
+	} closedir(dfp);
+
+	return true;
 }
 
 float get_simplified_file_size(const size_t f_size, char* unit, args_t args) {
@@ -287,14 +260,18 @@ float get_simplified_file_size(const size_t f_size, char* unit, args_t args) {
 	else return (float)f_size / ( pow(2 * exponent, 10) ); // FIXME: this is wrong //
 }
 
-size_t get_longest_fdescriptor(const file_t* files, const size_t f_count, uint8_t* longest_fname, size_t* largest_fsize, const args_t args) {
+size_t get_longest_fdescriptor(const da_t* da_files, uint8_t* longest_fname, size_t* largest_fsize, const args_t args) {
+	assert(da_files);
+
 	assert(*longest_fname == 0);
 	assert(*largest_fsize == 0);
 	// first we have to get longest_fname and largest_fsize //
-	for (size_t i=0; i<f_count; ++i) {
-		size_t fname_len = strlen(files[i].name);
+	for (size_t i=0; i<da_files->len; ++i) {
+		#define FILE ((file_t*)da_files->elems)[i]
+		size_t fname_len = strlen(FILE.name);
 		if (fname_len > *longest_fname) *longest_fname = fname_len;
-		if (files[i].st.st_size > *largest_fsize) *largest_fsize = files[i].st.st_size;
+		if ((size_t)FILE.stat.st_size > *largest_fsize) *largest_fsize = FILE.stat.st_size;
+		#undef FILE
 	}
 
 	size_t result = (size_t)*longest_fname + 3;
@@ -323,8 +300,8 @@ size_t get_longest_fdescriptor(const file_t* files, const size_t f_count, uint8_
 }
 
 const char* get_descriptor_color(file_t f_info, table_t* f_ext_map, args_t args) {
-	if(f_info.st.st_mode & S_IFDIR) return get_escape_code(STDOUT_FILENO, BLUE);
-	else if(f_info.st.st_mode & S_IXUSR) return get_escape_code(STDOUT_FILENO, GREEN);
+	if(f_info.stat.st_mode & S_IFDIR) return get_escape_code(STDOUT_FILENO, BLUE);
+	else if(f_info.stat.st_mode & S_IXUSR) return get_escape_code(STDOUT_FILENO, GREEN);
 
 	if (!(args & ARG_NO_NERDFONTS)) {
 		char* is_media = NULL; char* extension = NULL;
@@ -347,7 +324,7 @@ const char* get_descriptor_color(file_t f_info, table_t* f_ext_map, args_t args)
 		else if(!strcmp(is_media, "󰈫 ")) return get_escape_code(STDOUT_FILENO, YELLOW);
 	}
 
-	if(f_info.st.st_mode & S_IFREG) return "\0";
+	if(f_info.stat.st_mode & S_IFREG) return "\0";
 	else return get_escape_code(STDOUT_FILENO, CYAN); // must be symlink //
 }
 
@@ -367,14 +344,14 @@ const char* get_nerdfont_icon(file_t f_info, table_t* f_ext_map, const args_t ar
 		tok = strtok (NULL, ".");
 	} if (result && (result = f_ext_map->get(f_ext_map, result).s)) return result;
 
-	if(S_ISDIR(f_info.st.st_mode)) return " ";
-	else if(f_info.st.st_mode & S_IXUSR) return " ";
+	if(S_ISDIR(f_info.stat.st_mode)) return " ";
+	else if(f_info.stat.st_mode & S_IXUSR) return " ";
 	else return " ";
 }
 
 // oh god i am reading too much GNU source code //
-bool list_files(const file_t* files,
-				const size_t longest_descriptor, const size_t f_count,
+bool list_files(const da_t* files,
+				const size_t longest_descriptor,
 				const uint32_t files_per_row,
 				table_t* f_ext_map,
 				bool (*condition)(mode_t),
@@ -382,9 +359,9 @@ bool list_files(const file_t* files,
 	assert(f_ext_map || (args & ARG_NO_NERDFONTS ));
 
 	static size_t files_printed = 0;
-	for (size_t i=0; i<f_count; ++i) {
-		#define FILE files[i]
-		if (condition(FILE.st.st_mode)) continue;
+	for (size_t i=0; i<files->len; ++i) {
+		#define FILE ((file_t*)files->elems)[i]
+		if (condition(FILE.stat.st_mode)) continue;
 		else if (FILE.name[0] == '.') {
 			if (!(args & ARG_DOT_DIRS) && !(strcmp(FILE.name, ".") && strcmp(FILE.name, ".."))) continue;
 			else if (!(args & ARG_DOT_FILES)) continue;
@@ -401,31 +378,31 @@ bool list_files(const file_t* files,
 		sb_append(&sb, get_escape_code(STDOUT_FILENO, RESET));
 		if (args & ARG_STAT) {
 			descriptor_len += sb_append(&sb, "<");
-			descriptor_len += sb_append(&sb, get_readable_mode(FILE.st.st_mode));
+			descriptor_len += sb_append(&sb, get_readable_mode(FILE.stat.st_mode));
 			descriptor_len += sb_append(&sb, ">");
 		}
 
 		// ehh _BitInt(2) is nice and explicit but I'm aware compile will make this an i8 //
 		u(2) hr_arg = HR_ARG(args);
 		if (hr_arg) {
-			if (S_ISDIR(FILE.st.st_mode)) {
+			if (S_ISDIR(FILE.stat.st_mode)) {
 				if (!(args & ARG_DIR_CONTS)) goto skip_dirs;
 				else descriptor_len += sb_append(&sb, "(Contains ");
 			} else descriptor_len += sb_append(&sb, "(");
 
 			char* file_size = NULL;
 			if (hr_arg == 1) {
-				if (!(file_size = malloc(floor(log10(FILE.st.st_blocks + 1)) + 4))) return false;
+				if (!(file_size = malloc(floor(log10(FILE.stat.st_blocks + 1)) + 4))) return false;
 			// 	https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/stat.2.html //
 			// apple uses their own type for blocks that derives from long long //
 				#ifdef __APPLE__
-				sprintf(file_size, "%lli B)", FILE.st.st_blocks);
+				sprintf(file_size, "%lli B)", FILE.stat.st_blocks);
 				#else
-				sprintf(file_size, "%lu B)", FILE.st.st_blocks);
+				sprintf(file_size, "%lu B)", FILE.stat.st_blocks);
 				#endif
 			} else {
 				char unit = 0;
-				const float hr_size = get_simplified_file_size(FILE.st.st_blocks, &unit, args);
+				const float hr_size = get_simplified_file_size(FILE.stat.st_blocks, &unit, args);
 				#define ARBITRARY_SIZE 100
 				if (!(file_size = malloc(ARBITRARY_SIZE))) return false;
 
@@ -538,15 +515,25 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 	}
 
 	avoid_rce:
+	size_t max_recurse = 0;
 	if (args & ARG_RECURSIVE) {
-		queried_files.max_depth = UINT_MAX;
+		max_recurse = UINT_MAX;
 		puts("Recursive file listing is not implemented yet!\n");
 		goto TODO;
 	}
 
-	int nsfw = nftw(operand, &query_files, 0, 0);
-	close(fd);
-	if (nsfw == -1 || errno) {
+	char* path = strdup(operand);
+	// i tried putting this on the stack but it segfaults //
+	da_t* da_files = malloc(sizeof(da_t));
+	if (!da_files) return false;
+	da_files->cap = 8;
+	da_files->elems = calloc(da_files->cap, sizeof(file_t));
+	
+	da_t* da_fd = alloca(sizeof(da_t));
+	da_fd->cap = 50;
+	da_fd->elems = calloc(da_fd->cap, sizeof(file_t));
+	
+	if (!query_files(path, fd, da_files, da_fd, max_recurse)) {
 		switch (errno) {
 			case EOVERFLOW:
 				printf_color(stderr, RED, "Failed to allocate memory for files! (File capacity overflowed!)\n");
@@ -571,13 +558,13 @@ bool query_and_list(const char* operand, table_t* f_ext_map, const struct winsiz
 
 	uint8_t longest_fname = 0;
 	size_t largest_fsize = 0;
-	const size_t longest_fdescriptor = get_longest_fdescriptor(queried_files.files, queried_files.len, &longest_fname, &largest_fsize, args);
+	const size_t longest_fdescriptor = get_longest_fdescriptor(da_files, &longest_fname, &largest_fsize, args);
 	bool succ = 1;
 	if (args & ARG_UNSORTED)
-		succ = list_files(queried_files.files, longest_fdescriptor, queried_files.len, tty_dimensions.ws_col / longest_fdescriptor, f_ext_map, condition_dontcare, args);
+		succ = list_files(da_files, longest_fdescriptor, tty_dimensions.ws_col / longest_fdescriptor, f_ext_map, condition_dontcare, args);
 	else {
-		succ = list_files(queried_files.files, longest_fdescriptor, queried_files.len, tty_dimensions.ws_col / longest_fdescriptor, f_ext_map, condition_isndir, args);
-		succ |= list_files(queried_files.files, longest_fdescriptor, queried_files.len, tty_dimensions.ws_col / longest_fdescriptor, f_ext_map, condition_isdir, args);
+		succ = list_files(da_files, longest_fdescriptor, tty_dimensions.ws_col / longest_fdescriptor, f_ext_map, condition_isndir, args);
+		succ |= list_files(da_files, longest_fdescriptor, tty_dimensions.ws_col / longest_fdescriptor, f_ext_map, condition_isdir, args);
 	}
 
 	// only possible failure //
@@ -625,8 +612,7 @@ int main(int argc, char** argv) {
 		}
 	}
 
-	uint8_t longest_fname = 0, retcode = 0;
-	size_t largest_fsize = 0, f_count = 0;
+	uint8_t retcode = 0;
 	if (operand_count == 1) {
 		retcode = (uint8_t)query_and_list(".", f_ext_map, tty_dimensions, args, false);
 	} else {
