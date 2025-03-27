@@ -96,14 +96,18 @@ pub fn build(b: *Build) !void {
             cflags.appendSliceAssumeCapacity(&.{"-g"});
         },
         .any => {},
-        .fast => {},
+        .fast => {
+            cflags.appendSliceAssumeCapacity(&.{"-O3"});
+        },
         .safe => {
             cflags.appendSliceAssumeCapacity(&.{ "-fstack-protector-all", "-O" });
         },
-        .small => {},
+        .small => {
+            cflags.appendSliceAssumeCapacity(&.{"-Os"});
+        },
     }
 
-    cflags.appendSliceAssumeCapacity(&.{ "-D_GNU_SOURCE", "-DC23" });
+    cflags.appendSliceAssumeCapacity(&.{ "-D_DEFAULT_SOURCE", "-DC23" });
 
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{
