@@ -58,14 +58,11 @@ bool parse_args(const char* arg) {
 
 int main(int argc, char** argv) {
 	if(argc<=1) {
-		printf_color(stderr, RED, "You need at least 1 file to create!");
+		fprintf_color(stderr, RED, "You need at least 1 file to create!");
 		return -1;
 	}
-	if(!init_table()) {
-		print_escape_code(stderr, RED);
-		puts("Failed to allocate memory for file type table!");
-		print_escape_code(stderr, RESET);
-	}
+	if(!init_table()) 
+		fprintf_color(stderr, RED, "Failed to allocate memory for file type table!");
 
 	for(int i=1; i<argc; ++i) {
 		if(!parse_args(argv[i])) continue;
@@ -79,7 +76,7 @@ int main(int argc, char** argv) {
 
 		FILE* fp = fopen(argv[i], "w");
 		if(!fp) {
-			printf_color(stderr, RED, "Failed to fill file %s! (%s)", argv[i], strerror(errno));
+			fprintf_color(stderr, RED, "Failed to fill file %s! (%s)", argv[i], strerror(errno));
 			continue;
 		}
 

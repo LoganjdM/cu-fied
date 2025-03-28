@@ -59,7 +59,7 @@ args_t parse_argv(int argc, char** argv) {
 					result |= ARG_NO_NERDFONT;
 					break;
 				default:
-					printf_color(stderr, YELLOW, "Unknown argument: %s\n", ARG);
+					fprintf_color(stderr, YELLOW, "Unknown argument: %s\n", ARG);
 					return result;
 			}
 		}
@@ -90,22 +90,22 @@ void print_gid_uid(const struct stat st) {
 		switch (errno) {
 			// see signal(7) //
 			case EINTR:
-				printf_color(stderr, YELLOW, "Caught an OS signal! ");
+				fprintf_color(stderr, YELLOW, "Caught an OS signal! ");
 				break;
 			case EIO:
-				printf_color(stderr, YELLOW, "General I/O error! ");
+				fprintf_color(stderr, YELLOW, "General I/O error! ");
 				break;
 			case EMFILE:
-				printf_color(stderr, YELLOW, "Hit the open file descriptor limit! ");
+				fprintf_color(stderr, YELLOW, "Hit the open file descriptor limit! ");
 				break;
 			case ENFILE:
-				printf_color(stderr, YELLOW, "Hit the system-wide open file descriptor limit! ");
+				fprintf_color(stderr, YELLOW, "Hit the system-wide open file descriptor limit! ");
 				break;
 			case ENOMEM:
-				printf_color(stderr, YELLOW, "Didn't have enough memory to get Uid info! ");
+				fprintf_color(stderr, YELLOW, "Didn't have enough memory to get Uid info! ");
 				break;
 			default: // 0 or ENOENT or ESRCH or EBADF or EPERM ... //
-				printf_color(stderr, YELLOW, "Couldn't find info on the file's Uid! "); // should not happen //
+				fprintf_color(stderr, YELLOW, "Couldn't find info on the file's Uid! "); // should not happen //
 		} printf(" Uid: (%d)\t", st.st_uid);
 	} else printf("\tUid: (%d/%s)\t", st.st_uid, pws->pw_name);
 	
@@ -115,22 +115,22 @@ void print_gid_uid(const struct stat st) {
 		switch (errno) {
 			// see signal(7) //
 			case EINTR:
-				printf_color(stderr, YELLOW, "Caught an OS signal! ");
+				fprintf_color(stderr, YELLOW, "Caught an OS signal! ");
 				break;
 			case EIO:
-				printf_color(stderr, YELLOW, "General I/O error! ");
+				fprintf_color(stderr, YELLOW, "General I/O error! ");
 				break;
 			case EMFILE:
-				printf_color(stderr, YELLOW, "Hit the open file descriptor limit! ");
+				fprintf_color(stderr, YELLOW, "Hit the open file descriptor limit! ");
 				break;
 			case ENFILE:
-				printf_color(stderr, YELLOW, "Hit the system-wide open file descriptor limit! ");
+				fprintf_color(stderr, YELLOW, "Hit the system-wide open file descriptor limit! ");
 				break;
 			case ENOMEM:
-				printf_color(stderr, YELLOW, "Didn't have enough memory to get Gid info! ");
+				fprintf_color(stderr, YELLOW, "Didn't have enough memory to get Gid info! ");
 				break;
 			default: // 0 or ENOENT or ESRCH or EBADF or EPERM ... //
-				printf_color(stderr, YELLOW, "Couldn't find info on the file's Gid! "); // should not happen //
+				fprintf_color(stderr, YELLOW, "Couldn't find info on the file's Gid! "); // should not happen //
 		} printf(" Gid: (%d)\n", st.st_gid);
 	} else printf("Gid: (%d/%s)\n", st.st_gid, grp->gr_name);
 
@@ -150,14 +150,14 @@ bool print_nerdfont(const char* operand, const struct stat st, table_t* f_ext_ma
 
 	char* nerdfont = f_ext_map->get(f_ext_map, ext).s;
 	if (!nerdfont) {
-		if (S_ISDIR(st.st_mode)) printf_color(stdout, BLUE, " ");
+		if (S_ISDIR(st.st_mode)) printf_color(BLUE, "%s", " ");
 		else printf(" ");
 		
 		free(operand_copy);
 		return true;
 	}
 	
-	if (S_ISDIR(st.st_mode)) printf_color(stdout, BLUE, "%s", nerdfont);
+	if (S_ISDIR(st.st_mode)) printf_color(BLUE, "%s", nerdfont);
 	else printf("%s", nerdfont);
 	free(operand_copy);
 	return true;
@@ -171,14 +171,14 @@ bool print_nerdfont(const char* operand, const struct stat st, table_t* f_ext_ma
 
 int main(int argc, char** argv) {
 	if (argc < 2) {
-		printf_color(stderr, YELLOW, "You need to provide at least one file argument! (check -h?)\n");
+		fprintf_color(stderr, YELLOW, "You need to provide at least one file argument! (check -h?)\n");
 		return 1;
 	}
 
 	args_t args = parse_argv(argc, argv);
 	table_t* f_ext_map = NULL;
 	if (!(args & ARG_NO_NERDFONT) && !(f_ext_map = init_filetype_dict())) {
-		printf_color(stderr, RED, "Failed to allocate memory for nerdfonts based on file extensions!\n");
+		fprintf_color(stderr, RED, "Failed to allocate memory for nerdfonts based on file extensions!\n");
 		return 2;
 	}
 	
@@ -191,21 +191,21 @@ int main(int argc, char** argv) {
 		if (stat(OPERAND, &st) == -1) {
 			switch (errno) {
 				case EACCES:
-					printf_color(stderr, YELLOW, "Failed to access file! (do you have permission?)\n"); break;
+					fprintf_color(stderr, YELLOW, "Failed to access file! (do you have permission?)\n"); break;
 				case ELOOP:
-					printf_color(stderr, RED, "Encountered too many symbolic links!\n"); break;
+					fprintf_color(stderr, RED, "Encountered too many symbolic links!\n"); break;
 				default: // ENOTDIR, ENOENT, & ENAMETOOLONG //
-					printf_color(stderr, YELLOW, "Failed to access file! (Is the name valid?)\n");
+					fprintf_color(stderr, YELLOW, "Failed to access file! (Is the name valid?)\n");
 			} continue;
 		}
 
 		if (!(args & ARG_NO_NERDFONT)) {
 			if(!print_nerdfont(OPERAND, st, f_ext_map))
-				printf_color(stderr, YELLOW, "Failed to allocate memory for getting the nerdfont!\n");
+				fprintf_color(stderr, YELLOW, "Failed to allocate memory for getting the nerdfont!\n");
 		}
 		
 		if (!S_ISDIR(st.st_mode)) printf("%s\n", OPERAND);
-		else printf_color(stdout, BLUE, "%s\n", OPERAND);
+		else printf_color(BLUE, "%s\n", OPERAND);
 
 		#ifdef __APPLE__
 		printf("\tSize: %lli\tBlocks: %lli\tI/O Block: %i\n", st.st_size, st.st_blocks, st.st_blksize);
@@ -218,7 +218,7 @@ int main(int argc, char** argv) {
 			printf("\tMode: (%d/%s)", st.st_mode, hr_mode);
 			free(hr_mode);
 		} else {
-			printf_color(stderr, YELLOW, "\t Failed to allocate memory for human readable mode!\n");
+			fprintf_color(stderr, YELLOW, "\t Failed to allocate memory for human readable mode!\n");
 			printf("\tMode: (%d)", st.st_mode);
 		}
 
