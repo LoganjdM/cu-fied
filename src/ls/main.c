@@ -2,9 +2,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <stdio.h>
+#include <fcntl.h>
 
 #include "../colors.h"
 #include "../app_info.h"
+#include "../f_ext_map.h"
 
 #ifndef C23
 #	include <stdbool.h>
@@ -170,6 +173,33 @@ void free_operands(struct args args) {
 		free(args.operandv[i]);
 }
 
+// this should be a macro :/ //
+void iterate_over_open_err() {
+	switch (errno) {
+		case ELOOP:
+			fprintf_color(stderr, YELLOW, "(encountered too many symbolic links!)!");
+		case ENOENT:
+			fprintf_color(stderr, YELLOW, "(does it exist?)!");
+		// we don't have access //
+		case EACCES:
+			fprintf_color(stderr, YELLOW, "(do you have access to it?)!");
+		case EPERM:
+			fprintf_color(stderr, YELLOW, "(do you have access to it?)!");
+		case EROFS:
+			fprintf_color(stderr, YELLOW, "(do you have access to it?)!");
+		// its not valid //
+		case ENAMETOOLONG:
+			fprintf_color(stderr, YELLOW, "(is it a valid file?)!");
+		case EINVAL:
+			fprintf_color(stderr, YELLOW, "(is it a valid file?)!");
+		case ENXIO:
+			fprintf_color(stderr, YELLOW, "(is it a valid file?)!");
+		default:
+			fprintf_color(stderr, YELLOW, "(uh oh, errno: %d)!", errno);
+	}
+}
+	
+
 int main(int argc, char** argv) {
 	struct args args = {0};
 	if (!parse_argv(argc, (const char**)argv, &args)) {
@@ -181,7 +211,62 @@ int main(int argc, char** argv) {
 			return 255;
 		}
 	}
-	
+	#ifndef NDEBUG
+	printf(
+		"args: %b\n"
+		"operands %d\n",
+		args.args, args.operandc
+	);
+	#endif
+
+	table_t* f_ext_map = NULL;
+	if (!(args.args & no_nerdfont)) {
+		f_ext_map = init_filetype_dict();
+		if (!f_ext_map) {
+			if (errno == ENOMEM) {
+				fprintf_color(stderr, RED, "Didn't have enough memory for file extension table for nerdfonts!\n");
+				return 1;
+			}
+			fprintf_color(stderr, RED, "Encountered error making file extension table for nerdfonts!\n");
+			return 254;
+		}
+	}
+
+	// main loop //
+	uint8_t retcode = 0;
+	for (uint16_t i=0; i<args.operandc; ++i) {
+		#define OPERAND args.operandv[i]
+
+		int fd = open(OPERAND, 0);
+		if (fd == -1) {
+			// shouldn't happen, somethings gone wrong if it has //
+			assert(errno != EMFILE);
+		
+			fprintf_color(stderr, YELLOW, "Could not list ");
+			fprintf_color(stderr, BLUE, "%s ", OPERAND);
+			if (errno == ENFILE) {
+				fprintf_color(stderr, RED, "(hit the system-wide limit of open file descriptors!)");
+				fprintf_color(stderr, YELLOW, "!");
+				retcode = 253;
+				goto really_bad;
+			} else if (errno == ENOMEM) {
+				fprintf_color(stderr, RED, "(kernel is out of memory!)");
+				fprintf_color(stderr, YELLOW, "!");
+				retcode = 252;
+				goto really_bad;	
+			}
+			iterate_over_open_err();
+			retcode += 2;
+			continue;
+		}
+
+		
+		
+		#undef OPERAND
+	}
+
+	really_bad:
 	free_operands(args);
-	return 0;
+	if (f_ext_map) free(f_ext_map);
+	return retcode;
 }
