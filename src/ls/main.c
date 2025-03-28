@@ -1,10 +1,11 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <dirent.h>
 #include <errno.h>
 #include <stdio.h>
 #include <fcntl.h>
-
 #include "../colors.h"
 #include "../app_info.h"
 #include "../f_ext_map.h"
@@ -199,6 +200,59 @@ void iterate_over_open_err() {
 	}
 }
 	
+typedef struct {
+	char* dir;
+	char* name;
+
+	bool ok_st;
+	struct stat stat;
+} file_t;
+
+bool query_files(char* path, const int fd,
+				file_t* da_files, size_t file_len[static 1], size_t file_cap[static 1],
+				unsigned int da_fd[static 100], size_t fd_len[static 1],
+				const uint16_t recurse) {
+	assert(fd != -1);
+	assert(da_files);
+	assert(path);
+
+	if (recurse > 0) return true;
+
+	DIR* dfp = fdopendir(fd);
+	if (!dfp) return false;
+
+	struct dirent* d_stream = NULL;
+	for (; (d_stream = readdir(dfp)); ++*file_len) {
+		#define FILE da_files[*file_len - 1]
+		if (*file_len > *file_cap) {
+			if (*file_cap > *file_cap << 1) {
+				errno = EOVERFLOW;
+				return false;
+			} *file_cap <<= 1;
+
+			void* np = reallocarray(da_files, *file_cap, sizeof(file_t));
+			if (!np) return false;
+			da_files = (file_t*)np;
+		} if (*fd_len == 100) {
+			close_range(da_fd[0], da_fd[99], 0);
+			*fd_len = 0;
+		}
+
+		FILE.dir = path;
+		FILE.name = strdupa(d_stream->d_name);
+
+		char* fullpath = malloc(strlen(FILE.dir)+strlen(FILE.name)+2);
+		if (!fullpath) return false;
+		sprintf(fullpath, "%s/%s", path, FILE.name);
+		
+		int fd = open(fullpath, 0);
+		if (fd == -1) {
+			free(fullpath);
+			continue;
+		}
+		
+	}
+}
 
 int main(int argc, char** argv) {
 	struct args args = {0};
@@ -260,13 +314,84 @@ int main(int argc, char** argv) {
 			continue;
 		}
 
-		
+		struct stat st = {0};
+		if (fstat(fd, &st) == -1) {
+			assert(errno != EBADF);
+
+			fprintf_color(stderr, YELLOW, "Coudln't get stat on ");
+			fprintf_color(stderr, BLUE, "%s ", OPERAND);
+			switch (errno) {
+				case EACCES:
+					fprintf_color(stderr, YELLOW, "(do you have access to it?)");
+					break;
+				case ENOMEM:
+					fprintf_color(stderr, RED, "(kernel is out of memory!)");
+					goto really_bad;
+				case EOVERFLOW:
+					fprintf_color(stderr, YELLOW, "(File's size, inode, or block count, can't be represented on this system!)");
+					break;
+				default:
+					fprintf_color(stderr, YELLOW, "(uh oh, errno: %d!)", errno);
+					break;
+			}
+			fprintf_color(stderr, YELLOW, "! ");
+			retcode += 2;
+			continue;
+		}
+
+		if (i > 1 || strcmp(args.operandv[i], ".")) {
+			char* operand_copy = strdupa(OPERAND);
+
+			char* f_ext = "\0";
+			char* tok = strtok(operand_copy, ".");
+			while (tok) {
+				f_ext = tok;
+				tok = strtok(NULL, ".");
+			}
+
+			if (!S_ISDIR(st.st_mode)) {
+				// avoid RCE //
+				for (size_t j=0; j<strlen(OPERAND); ++j) {
+					if (OPERAND[j] == ';' || OPERAND[j] == '|' || OPERAND[j] == '&') {
+						fprintf_color(stderr, YELLOW, "Not showing file contents for security! Could result in remote code execution!\n");
+						goto potential_rce;
+					}
+
+					// TODO: go off PAGE enviroment variable //
+					if (execl("/bin/env", "env", "bat", "-p", OPERAND, NULL) == -1) {
+						errno = 0;
+						if (execl("/bin/env", "env", "more", "-f", OPERAND, NULL) == -1) {
+							fprintf_color(stderr, YELLOW, "Failed to list ");
+							fprintf_color(stderr, BLUE, "%s", OPERAND);
+							switch (errno) {
+								case ENOENT:
+									fprintf_color(stderr, YELLOW, "(neither bat or more were found!)");
+									break;
+								case ENOEXEC:
+									fprintf_color(stderr, YELLOW, "(either more or bat and more are not in a recognized format!)");
+									break;
+								default:
+									fprintf_color(stderr, YELLOW, "(uh oh, errno: %d!)", errno);
+									break;
+							} fprintf_color(stderr, YELLOW, "!");
+						}
+					}
+				} continue;
+			} potential_rce:
+
+			const char* nerdicon = f_ext_map->get(f_ext_map, f_ext).s;
+			const char* nerdicon_nfound = S_ISDIR(st.st_mode) ? "" : "";
+			printf_color(S_ISDIR(st.st_mode) ? BLUE : RESET, "%s %s:\n", nerdicon ? nerdicon : nerdicon_nfound, OPERAND);
+		}
+		char* path = strdup(OPERAND);
+
+		free(path);
 		
 		#undef OPERAND
 	}
 
 	really_bad:
 	free_operands(args);
-	if (f_ext_map) free(f_ext_map);
+	if (f_ext_map) ht_free(f_ext_map);
 	return retcode;
 }
