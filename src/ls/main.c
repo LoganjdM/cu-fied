@@ -38,7 +38,8 @@ struct args {
 };
 
 // reading too much gnu stuff and writing in zig got me in a "lets try these things I havn't done much" phase //
-bool parse_argv(const int argc, const char** argv, struct args arg_buf[static 1]) {
+#define NONNULL static 1
+bool parse_argv(const int argc, const char** argv, struct args arg_buf[NONNULL]) {
 	assert(arg_buf);
 	bool ret = true;
 
@@ -209,28 +210,27 @@ typedef struct {
 } file_t;
 
 bool query_files(char* path, const int fd,
-				file_t* da_files, size_t file_len[static 1], size_t file_cap[static 1],
-				unsigned int da_fd[static 100], size_t fd_len[static 1],
-				const uint16_t recurse) {
+				file_t* da_files, size_t file_len[NONNULL], size_t file_cap,
+				unsigned int da_fd[static 100], size_t fd_len[NONNULL],
+				struct args args[NONNULL]) {
 	assert(fd != -1);
 	assert(da_files);
 	assert(path);
 
-	if (recurse > 0) return true;
-
 	DIR* dfp = fdopendir(fd);
 	if (!dfp) return false;
 
+	bool had_dirs = false;
 	struct dirent* d_stream = NULL;
 	for (; (d_stream = readdir(dfp)); ++*file_len) {
 		#define FILE da_files[*file_len - 1]
-		if (*file_len > *file_cap) {
-			if (*file_cap > *file_cap << 1) {
+		if (*file_len > file_cap) {
+			if (file_cap > file_cap << 1) {
 				errno = EOVERFLOW;
 				return false;
-			} *file_cap <<= 1;
+			} file_cap <<= 1;
 
-			void* np = reallocarray(da_files, *file_cap, sizeof(file_t));
+			void* np = reallocarray(da_files, file_cap, sizeof(file_t));
 			if (!np) return false;
 			da_files = (file_t*)np;
 		} if (*fd_len == 100) {
@@ -247,10 +247,29 @@ bool query_files(char* path, const int fd,
 		
 		int fd = open(fullpath, 0);
 		if (fd == -1) {
+			fprintf_color(stderr, YELLOW, "Ran into an error listing files! ");
+			iterate_over_open_err();
 			free(fullpath);
 			continue;
 		}
-		
+
+		struct stat st = {0};
+		if (fstat(fd, &st) == -1) {
+			FILE.ok_st = false;
+			assert(errno != EBADF);
+			// will only happen if LSF is compiled in 32 bit and tries to ls a 64 bit file //
+			if (errno == EOVERFLOW) {
+				fprintf_color(stderr, BLUE, "%s ", FILE.name);
+				fprintf_color(stderr, YELLOW, "has an inode, block count, or size that is too big to represent!\n ", FILE.name);
+			} continue;
+		}
+		FILE.ok_st = true;
+		FILE.stat = st;
+
+		if (S_ISDIR(st.st_mode)) {
+			args->operandv[args->operandc] = strdup(fullpath);
+			++args->operandc;
+		} else free(fullpath);
 	}
 }
 
