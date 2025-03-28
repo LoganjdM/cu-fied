@@ -19,19 +19,19 @@
 
 bool force_color = false;
 
-const char* get_escape_code(int fd, const char ansi[5]) {
+const char* get_escape_code(int fd, const char ansi[static 5]) {
 	if(isatty(fd) || force_color) {
 		return ansi;
 	} else return "\0";
 }
 
-int print_escape_code(FILE* fp, const char ansi[5]) {
+int fprint_escape_code(FILE* fp, const char ansi[static 5]) {
 	const char* bytes = get_escape_code(fileno(fp), ansi);
 	if(!bytes) return 0;
 	return fputs(bytes, fp);
 }
 
-int printf_color(FILE* fp, const char ansi[5], char* fmt, ...) {
+int fprintf_color(FILE* fp, const char ansi[static 5], char* fmt, ...) {
 	fputs(get_escape_code(fileno(fp), ansi), fp);
 
 	int printed = 0;
@@ -41,4 +41,10 @@ int printf_color(FILE* fp, const char ansi[5], char* fmt, ...) {
 	va_end(args);
 	fputs(get_escape_code(fileno(fp), RESET), fp);
 	return printed;
+}
+
+// nasty non-capital macro stemming from laziness //
+#define printf_color(ansi, fmt, ...) fprintf_color(stdout, ansi, fmt, __VA_ARGS__)
+int print_escape_code(const char ansi[static 5]) {
+	return fprint_escape_code(stdout, ansi);
 }

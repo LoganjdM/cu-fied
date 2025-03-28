@@ -89,24 +89,24 @@ fn buildZigModule(b: *Build, options: *const SharedBuildOptions, main: LazyPath,
 pub fn build(b: *Build) !void {
     // General options
     var cflags: std.BoundedArray([]const u8, 16) = .{};
-    cflags.appendSliceAssumeCapacity(&.{"-std=c23", "-Wall"});
+    cflags.appendSliceAssumeCapacity(&.{ "-std=c23", "-Wall" });
 
-	if (b.release_mode == .off) {
+    if (b.release_mode == .off) {
         cflags.appendSliceAssumeCapacity(&.{"-g"});
-	} else {
+    } else {
         cflags.appendSliceAssumeCapacity(&.{"-Wextra"});
-	    switch (b.release_mode) {
-	        .fast => {
-	            cflags.appendSliceAssumeCapacity(&.{"-O3"});
-	        },
-	        .safe => {
-	            cflags.appendSliceAssumeCapacity(&.{ "-fstack-protector-all", "-O" });
-	        },
-	        .small => {
-	            cflags.appendSliceAssumeCapacity(&.{"-Os"});
-	        },
-	        else => {},
-		}
+        switch (b.release_mode) {
+            .fast => {
+                cflags.appendSliceAssumeCapacity(&.{"-O3"});
+            },
+            .safe => {
+                cflags.appendSliceAssumeCapacity(&.{ "-fstack-protector-all", "-O" });
+            },
+            .small => {
+                cflags.appendSliceAssumeCapacity(&.{"-Os"});
+            },
+            else => {},
+        }
     }
 
     cflags.appendSliceAssumeCapacity(&.{ "-D_GNU_SOURCE", "-DC23" });
