@@ -165,6 +165,11 @@ bool parse_argv(const int argc, const char** argv, struct args arg_buf[static 1]
 	return ret;
 }
 
+void free_operands(struct args args) {
+	for (uint16_t i=0; i<args.operandc; ++i)
+		free(args.operandv[i]);
+}
+
 int main(int argc, char** argv) {
 	struct args args = {0};
 	if (!parse_argv(argc, (const char**)argv, &args)) {
@@ -176,7 +181,7 @@ int main(int argc, char** argv) {
 			return 255;
 		}
 	}
-
 	
+	free_operands(args);
 	return 0;
 }
