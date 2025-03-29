@@ -207,7 +207,6 @@ void iterate_over_open_err() {
 }
 	
 typedef struct {
-	char* dir;
 	char* name;
 
 	bool ok_st;
@@ -257,7 +256,6 @@ bool query_files(char* path, const int fd,
 				struct args args[NONNULL]) {
 	assert(fd != -1);
 	assert(da_files);
-	assert(path);
 
 	DIR* dfp = fdopendir(fd);
 	if (!dfp) return false;
@@ -279,11 +277,10 @@ bool query_files(char* path, const int fd,
 			close_range_binding(da_fd[0], da_fd[99], 0);
 			*fd_len = 0;
 		}
-
-		FILE.dir = path;
+		
 		FILE.name = strdupa(d_stream->d_name);
 
-		char* fullpath = malloc(strlen(FILE.dir)+strlen(FILE.name)+2);
+		char* fullpath = malloc(strlen(path)+strlen(FILE.name)+2);
 		if (!fullpath) return false;
 		sprintf(fullpath, "%s/%s", path, FILE.name);
 		
@@ -357,7 +354,7 @@ int main(int argc, char** argv) {
 	// main loop //
 	uint8_t retcode = 0;
 	unsigned int* da_fd = (unsigned*)calloc(100, sizeof(da_fd));
-	size_t fd_len = 0;
+	size_t fd_len = 1;
 	for (uint16_t i=0; i<args.operandc; ++i) {
 		#define OPERAND args.operandv[i]
 
@@ -455,7 +452,7 @@ int main(int argc, char** argv) {
 		}
 		char* path = strdup(OPERAND);
 		file_t* da_files = (file_t*)calloc(10, sizeof(file_t));
-		size_t file_len = 0;
+		size_t file_len = 1;
 		query_files(path, fd, da_files, &file_len, 10, da_fd, &fd_len, &args);
 		
 		#undef OPERAND
