@@ -234,7 +234,37 @@ bool query_files(char* path, const int fd,
 			if (!np) return false;
 			da_files = (file_t*)np;
 		} if (*fd_len == 100) {
-			close_range(da_fd[0], da_fd[99], 0);
+			// close_range(da_fd[0], da_fd[99], 0);
+			// what the fuck zig CC? outdated glibc forcing me to make my own binding //
+			
+			// this doesn't work on mac... mac doesn't have close_range syscall.. we will have to loop over it which is more expensive but oh well //
+			// also this if I go full posix OS modes: https://man.freebsd.org/cgi/man.cgi?query=close_range&sektion=2&n=1 //
+			// closefrom() will be nice //
+			#ifdef __x86_64__
+			__asm__ volatile(
+				"movl $436, %%eax\n" // close_range //
+				"movl %[start], %%edi\n"
+				"movl %[end], %%esi\n"
+				"movl $0, %%edx\n"
+				"syscall\n"
+				: // no out //
+				: [start] "r"(da_fd[0]), 
+				  [end] "r"(da_fd[99])
+				: "%eax", "%edi", "%esi", "%edx"
+			);
+			#else // ARM //
+			__asm__ volatile(
+				"mov x8, #436\n" // close_range //
+				"mov x0, %[start]\n"
+				"mov x1, %[end]\n"
+				"mov x2, #0\n"
+				"svc #0\n"
+				:
+				: [start] "r"(da_fd[0]),
+			      [end]   "r"(da_fd[99])
+				: "x8", "x0", "x1", "x2"
+			);
+			#endif
 			*fd_len = 0;
 		}
 
@@ -266,11 +296,18 @@ bool query_files(char* path, const int fd,
 		FILE.ok_st = true;
 		FILE.stat = st;
 
-		if (S_ISDIR(st.st_mode)) {
+		if (S_ISDIR(st.st_mode) && ARG_RECURSE(args->arg) > 0) {
 			args->operandv[args->operandc] = strdup(fullpath);
 			++args->operandc;
+			had_dirs = true;
 		} else free(fullpath);
 	}
+	if (had_dirs) {
+		uint8_t recurse = ARG_RECURSE(args->arg);
+		--recurse;
+		args->arg |= recurse << 8;
+	}
+	return true;
 }
 
 int main(int argc, char** argv) {
