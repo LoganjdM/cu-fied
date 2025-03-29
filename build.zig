@@ -94,7 +94,7 @@ pub fn build(b: *Build) !void {
     if (b.release_mode == .off) {
         cflags.appendSliceAssumeCapacity(&.{"-g"});
     } else {
-        cflags.appendSliceAssumeCapacity(&.{"-Wextra", "-DNDEBUG"});
+        cflags.appendSliceAssumeCapacity(&.{ "-Wextra", "-DNDEBUG" });
         switch (b.release_mode) {
             .fast => {
                 cflags.appendSliceAssumeCapacity(&.{"-O3"});

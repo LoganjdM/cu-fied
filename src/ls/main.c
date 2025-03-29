@@ -6,9 +6,13 @@
 #include <errno.h>
 #include <stdio.h>
 #include <fcntl.h>
+
 #include "../colors.h"
 #include "../app_info.h"
 #include "../f_ext_map.h"
+#define REALLOCARRAY_IMPLEMENTATION
+#define STRDUPA_IMPLEMENTATION
+#	include "../polyfill.h"
 
 #ifndef C23
 #	include <stdbool.h>
@@ -17,7 +21,7 @@
 #include <assert.h>
 
 // note my original comment here about this binary math being a big of expertimentation on trying a new way of storing args. this is more of me fucking around and figuring out a new way of doing things I like //
-// it personally is quite nice imo, though because of that and knowing me: i would not be suprised if I just reinvented something that's been done a million times before without me knowing //
+// it personally is quite nice imo, though because of that and knowing me: i would not be surprised if I just reinvented something that's been done a million times before without me knowing //
 
 struct args {
 	uint16_t args;
@@ -37,7 +41,7 @@ struct args {
 	uint16_t operandc;
 };
 
-// reading too much gnu stuff and writing in zig got me in a "lets try these things I havn't done much" phase //
+// reading too much gnu stuff and writing in zig got me in a "lets try these things I have not done much" phase //
 #define NONNULL static 1
 bool parse_argv(const int argc, const char** argv, struct args arg_buf[NONNULL]) {
 	assert(arg_buf);
@@ -123,7 +127,8 @@ bool parse_argv(const int argc, const char** argv, struct args arg_buf[NONNULL])
 		} else {
 			char* arg_tok = strdup(ARG);
 			if (!arg_tok) return false;
-			// gotta deal with numbers und sheisse, da ist verruckt, ich werde mich TOTEN //
+			// lol spell checker doesn't like german //
+			// gotta deal with numbers und sheisse, da is verruckt, ich werde mich TOTEN //
 			if (strtok(arg_tok, "=")) {
 				arg_tok = strtok(NULL, "=");
 				if (IS_ARG(arg_tok, "--recurse", "-R")) {
@@ -209,6 +214,43 @@ typedef struct {
 	struct stat stat;
 } file_t;
 
+void close_range_binding(int start, int end, int flags) {
+	#ifdef __APPLE__
+	for (uint8_t i=start; i<end;  ++i)
+		close(i);
+	errno = 0; // close_range ignores EBADF's
+	// #elif defined(__FreeBSD__) // we thinkin about it
+	// close_range(start, end, flags);
+	#else // Linux //
+	// what the fuck zig CC? outdated glibc forcing me to make my own binding //
+	#	ifdef __x86_64__
+	__asm__ volatile(
+		"movl $436, %%eax\n" // close_range //
+		"movl %[start], %%edi\n"
+		"movl %[end], %%esi\n"
+		"movl $0, %%edx\n"
+		"syscall\n"
+		: // no out //
+		: [start] "r"(start), 
+		  [end] "r"(end)
+		: "%eax", "%edi", "%esi", "%edx"
+	);
+	#	else // ARM //
+	__asm__ volatile(
+		"mov x8, #436\n" // close_range //
+		"mov x0, %[start]\n"
+		"mov x1, %[end]\n"
+		"mov x2, #0\n"
+		"svc #0\n"
+		:
+		: [start] "r"(start),
+	      [end]   "r"(end)
+		: "x8", "x0", "x1", "x2"
+	);
+	#	endif
+	#endif
+}
+
 bool query_files(char* path, const int fd,
 				file_t* da_files, size_t file_len[NONNULL], size_t file_cap,
 				unsigned int da_fd[static 100], size_t fd_len[NONNULL],
@@ -235,36 +277,9 @@ bool query_files(char* path, const int fd,
 			da_files = (file_t*)np;
 		} if (*fd_len == 100) {
 			// close_range(da_fd[0], da_fd[99], 0);
-			// what the fuck zig CC? outdated glibc forcing me to make my own binding //
 			
-			// this doesn't work on mac... mac doesn't have close_range syscall.. we will have to loop over it which is more expensive but oh well //
 			// also this if I go full posix OS modes: https://man.freebsd.org/cgi/man.cgi?query=close_range&sektion=2&n=1 //
 			// closefrom() will be nice //
-			#ifdef __x86_64__
-			__asm__ volatile(
-				"movl $436, %%eax\n" // close_range //
-				"movl %[start], %%edi\n"
-				"movl %[end], %%esi\n"
-				"movl $0, %%edx\n"
-				"syscall\n"
-				: // no out //
-				: [start] "r"(da_fd[0]), 
-				  [end] "r"(da_fd[99])
-				: "%eax", "%edi", "%esi", "%edx"
-			);
-			#else // ARM //
-			__asm__ volatile(
-				"mov x8, #436\n" // close_range //
-				"mov x0, %[start]\n"
-				"mov x1, %[end]\n"
-				"mov x2, #0\n"
-				"svc #0\n"
-				:
-				: [start] "r"(da_fd[0]),
-			      [end]   "r"(da_fd[99])
-				: "x8", "x0", "x1", "x2"
-			);
-			#endif
 			*fd_len = 0;
 		}
 
@@ -413,7 +428,7 @@ int main(int argc, char** argv) {
 						goto potential_rce;
 					}
 
-					// TODO: go off PAGE enviroment variable //
+					// TODO: go off PAGE environment variable //
 					if (execl("/bin/env", "env", "bat", "-p", OPERAND, NULL) == -1) {
 						errno = 0;
 						if (execl("/bin/env", "env", "more", "-f", OPERAND, NULL) == -1) {

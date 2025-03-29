@@ -9,11 +9,21 @@ static inline void* reallocarray(void* ptr, size_t nmemb, size_t size) {
 		return NULL;
 	} return realloc(ptr, size * nmemb);
 }
-#elif defined(MEMPCPY_IMPLEMENTATION)
+#endif
+#ifdef MEMPCPY_IMPLEMENTATION
 #	include <string.h>
 static inline void* mempcpy(void* dest, const void* src, size_t n) {
 	memcpy(dest, src, n);
 	return (void*)dest + n;
+}
+#endif
+#ifdef STRDUPA_IMPLEMENTATION
+#	include <string.h>
+#	include <alloca.h>
+char* strdupa(const char* s) {
+	char* result = alloca(strlen(s) + 1);
+	strncpy(result, s, strlen(s) + 1);
+	return result;
 }
 #endif
 
