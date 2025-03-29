@@ -276,10 +276,7 @@ bool query_files(char* path, const int fd,
 			if (!np) return false;
 			da_files = (file_t*)np;
 		} if (*fd_len == 100) {
-			// close_range(da_fd[0], da_fd[99], 0);
-			
-			// also this if I go full posix OS modes: https://man.freebsd.org/cgi/man.cgi?query=close_range&sektion=2&n=1 //
-			// closefrom() will be nice //
+			close_range_binding(da_fd[0], da_fd[99], 0);
 			*fd_len = 0;
 		}
 
@@ -359,6 +356,8 @@ int main(int argc, char** argv) {
 
 	// main loop //
 	uint8_t retcode = 0;
+	unsigned int* da_fd = (unsigned*)calloc(100, sizeof(da_fd));
+	size_t fd_len = 0;
 	for (uint16_t i=0; i<args.operandc; ++i) {
 		#define OPERAND args.operandv[i]
 
@@ -455,13 +454,18 @@ int main(int argc, char** argv) {
 			printf_color(S_ISDIR(st.st_mode) ? BLUE : RESET, "%s %s:\n", nerdicon ? nerdicon : nerdicon_nfound, OPERAND);
 		}
 		char* path = strdup(OPERAND);
-
-		free(path);
+		file_t* da_files = (file_t*)calloc(10, sizeof(file_t));
+		size_t file_len = 0;
+		query_files(path, fd, da_files, &file_len, 10, da_fd, &fd_len, &args);
 		
 		#undef OPERAND
 	}
 
 	really_bad:
+	if (da_fd) {
+		close_range_binding(da_fd[0], da_fd[fd_len - 1], 0);
+		free(da_fd);
+	}
 	free_operands(args);
 	if (f_ext_map) ht_free(f_ext_map);
 	return retcode;
