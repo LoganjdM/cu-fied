@@ -306,11 +306,13 @@ bool query_files(char* path, const int fd,
 		FILE.stat = st;
 
 		if (S_ISDIR(st.st_mode) && ARG_RECURSE(args->arg) > 0) {
-			args->operandv[args->operandc] = strdup(fullpath);
+			args->operandv[args->operandc] = fullpath; // why dupe when can re-use //
 			++args->operandc;
 			had_dirs = true;
 		} else free(fullpath);
 	}
+
+	closedir(dfp);
 	if (had_dirs) {
 		uint8_t recurse = ARG_RECURSE(args->arg);
 		--recurse;
@@ -450,10 +452,11 @@ int main(int argc, char** argv) {
 			const char* nerdicon_nfound = S_ISDIR(st.st_mode) ? "" : "";
 			printf_color(S_ISDIR(st.st_mode) ? BLUE : RESET, "%s %s:\n", nerdicon ? nerdicon : nerdicon_nfound, OPERAND);
 		}
-		char* path = strdup(OPERAND);
-		file_t* da_files = (file_t*)calloc(10, sizeof(file_t));
+		file_t* da_files = (file_t*)calloc(16, sizeof(file_t));
 		size_t file_len = 1;
-		query_files(path, fd, da_files, &file_len, 10, da_fd, &fd_len, &args);
+		query_files(OPERAND, fd, da_files, &file_len, 16, da_fd, &fd_len, &args);
+
+		free(da_files);
 		
 		#undef OPERAND
 	}
