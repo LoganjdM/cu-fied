@@ -132,18 +132,19 @@ bool parse_argv(const int argc, const char** argv, struct args arg_buf[NONNULL])
 			char* arg_tok = strdupa(ARG);
 			// lol spell checker doesn't like german //
 			// gotta deal with numbers und sheisse, da is verruckt, ich werde mich TOTEN //
-			if (strtok(arg_tok, "=")) {
-				arg_tok = strtok(NULL, "=");
-				if (IS_ARG(arg_tok, "--recurse", "-R")) {
-					unsigned int recurse_parse = (unsigned)atoi(arg_tok);
-					// don't overflow and assume max recursion if parse failed or input was 0 //
-					if (recurse_parse == 0 || recurse_parse > 0xFFFF)
-						arg_buf->args |= (0xFFFF << 8);
-					else arg_buf->args |= (recurse_parse << 8);	
-				} else if (IS_ARG(arg_tok, "--human-readable", "-hr")) {
-					unsigned int hr_val = (unsigned)atoi(arg_tok);
-					if (hr_val <= 3) arg_buf->args |= (hr_val << 6);
-				} continue;
+			if ((arg_tok = strtok(arg_tok, "="))) {
+				if ((arg_tok = strtok(NULL, "="))) {
+					if (IS_ARG(arg_tok, "--recurse", "-R")) {
+						unsigned int recurse_parse = (unsigned)atoi(arg_tok);
+						// don't overflow and assume max recursion if parse failed or input was 0 //
+						if (recurse_parse == 0 || recurse_parse > 0xFFFF)
+							arg_buf->args |= (0xFFFF << 8);
+						else arg_buf->args |= (recurse_parse << 8);	
+					} else if (IS_ARG(arg_tok, "--human-readable", "-hr")) {
+						unsigned int hr_val = (unsigned)atoi(arg_tok);
+						if (hr_val <= 3) arg_buf->args |= (hr_val << 6);
+					} continue;
+				}
 			}
 
 			// lsf -fac -U etc... btw pronounce those args out loud :) //
@@ -371,7 +372,7 @@ float simplify_file_size(const size_t f_size, char unit[NONNULL], const struct a
 size_t get_longest_f_string(const file_t files[NONNULL], const size_t file_len, const struct args args) {
 	assert(files);
 	size_t longest_f_name = 0, longest_f_size = 0;
-	for (size_t i=0; i<file_len - 1; ++i) {
+	for (size_t i=0; i<file_len-1; ++i) {
 		size_t f_name_len = strlen(files[i].name);
 		if (f_name_len > longest_f_name) longest_f_name = f_name_len;
 		if ((size_t)files[i].stat.st_size > longest_f_size) longest_f_size = files[i].stat.st_size;
@@ -712,6 +713,7 @@ int main(int argc, char** argv) {
 			retcode += 2;
 		}
 
+		for (size_t i=0; i<file_len-1; ++i) free(da_files[i].name);
 		free(da_files);
 		
 		#undef OPERAND
