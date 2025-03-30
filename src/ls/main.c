@@ -707,8 +707,10 @@ int main(int argc, char** argv) {
 			list_files_failed |= list_files(da_files, file_len, longest_f_string, f_ext_map, condition_isdir, f_per_row, args);
         }
 		
-		if (list_files_failed)
+		if (list_files_failed) {
 			fprintf_color(stderr, RED, "Failed to allocate memory for showing file size!\n");
+			retcode += 2;
+		}
 
 		free(da_files);
 		
