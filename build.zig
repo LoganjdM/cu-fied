@@ -77,7 +77,7 @@ fn buildCModule(b: *Build, options: *const SharedBuildOptions, lib_color: ?*Step
     return module;
 }
 
-fn buildZigModule(b: *Build, options: *const SharedBuildOptions, lib_color: *Step.Compile, main: LazyPath, imports: []const Module.Import) *Module {
+fn buildZigModule(b: *Build, options: *const SharedBuildOptions, main: LazyPath, imports: []const Module.Import) *Module {
     const module = b.createModule(.{
         .root_source_file = main,
         .target = options.target,
@@ -85,7 +85,6 @@ fn buildZigModule(b: *Build, options: *const SharedBuildOptions, lib_color: *Ste
         .link_libc = true,
         .imports = imports,
     });
-    module.addObject(lib_color);
 
     return module;
 }
@@ -219,11 +218,11 @@ pub fn build(b: *Build) !void {
 
     // MVF
     const mvf_main = b.path("src/file-io/mv/main.zig");
-    const mvf = buildZigModule(b, &options, lib_color, mvf_main, imports);
+    const mvf = buildZigModule(b, &options, mvf_main, imports);
     buildCli(b, "mvf", mvf, &options);
 
     // CPF
     const cpf_main = b.path("src/file-io/cp/main.zig");
-    const cpf = buildZigModule(b, &options, lib_color, cpf_main, imports);
+    const cpf = buildZigModule(b, &options, cpf_main, imports);
     buildCli(b, "cpf", cpf, &options);
 }
