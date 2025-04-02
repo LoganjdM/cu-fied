@@ -59,7 +59,7 @@ fn buildCli(b: *Build, name: []const u8, root_module: *Module, options: *const S
     if (options.emit_man) buildManPage(b, exe);
 }
 
-fn buildCModule(b: *Build, options: *const SharedBuildOptions, srcs: []const []const u8, cflags: []const []const u8) *Module {
+fn buildCModule(b: *Build, options: *const SharedBuildOptions, lib_color: ?*Step.Compile, srcs: []const []const u8, cflags: []const []const u8) *Module {
     const module = b.createModule(.{
         .target = options.target,
         .optimize = options.optimize,
@@ -70,11 +70,14 @@ fn buildCModule(b: *Build, options: *const SharedBuildOptions, srcs: []const []c
         .flags = cflags,
     });
     module.addIncludePath(b.path("src/ctypes"));
-
+    if (lib_color != null) {
+	    module.addObject(lib_color.?);
+	}
+	
     return module;
 }
 
-fn buildZigModule(b: *Build, options: *const SharedBuildOptions, main: LazyPath, imports: []const Module.Import) *Module {
+fn buildZigModule(b: *Build, options: *const SharedBuildOptions, lib_color: *Step.Compile, main: LazyPath, imports: []const Module.Import) *Module {
     const module = b.createModule(.{
         .root_source_file = main,
         .target = options.target,
@@ -82,6 +85,7 @@ fn buildZigModule(b: *Build, options: *const SharedBuildOptions, main: LazyPath,
         .link_libc = true,
         .imports = imports,
     });
+    module.addObject(lib_color);
 
     return module;
 }
@@ -89,7 +93,7 @@ fn buildZigModule(b: *Build, options: *const SharedBuildOptions, main: LazyPath,
 pub fn build(b: *Build) !void {
     // General options
     var cflags: std.BoundedArray([]const u8, 16) = .{};
-    cflags.appendSliceAssumeCapacity(&.{ "-std=c23", "-Wall" });
+    cflags.appendSliceAssumeCapacity(&.{ "-std=c23", "-Wall", "-D_GNU_SOURCE", "-DC23" });
 
     if (b.release_mode == .off) {
         cflags.appendSliceAssumeCapacity(&.{"-g"});
@@ -108,8 +112,6 @@ pub fn build(b: *Build) !void {
             else => {},
         }
     }
-
-    cflags.appendSliceAssumeCapacity(&.{ "-D_GNU_SOURCE", "-DC23" });
 
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{
@@ -143,35 +145,46 @@ pub fn build(b: *Build) !void {
     const check_fmt = b.addFmt(.{ .paths = &fmt_paths, .check = true });
     check_fmt_step.dependOn(&check_fmt.step);
 
-    // Utilities
-    const colors_h = b.addTranslateC(.{
-        .root_source_file = b.path("src/colors.h"),
+	// LibColor (all programs use this) //
+	const lib_color_files = [_][]const u8{ "src/libcolor/colors.c" };
+	const lib_color_module: *Module = buildCModule(b, &options, null, &lib_color_files, cflags.constSlice());
+	// const lib_color_static_lib = 
+	const lib_color = b.addObject(.{
+        .name = "libcolor",
+        .root_module = lib_color_module,
+    });
+	
+	
+    const colors_h_translation_module = b.addTranslateC(.{
+        .root_source_file = b.path("src/libcolor/colors.h"),
         .target = target,
         .optimize = optimize,
-    });
-    const colors_h_module = colors_h.createModule();
-    const colors_module = b.addModule("colors", .{
-        .root_source_file = b.path("src/colors.zig"),
+    }).createModule();
+    
+    const lib_color_zig = b.addModule("colors", .{
+        .root_source_file = b.path("src/libcolor/colors.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
         .imports = &.{
-            .{ .name = "colors_h", .module = colors_h_module },
+            .{ .name = "colors_h", .module = colors_h_translation_module },
         },
     });
-
+	lib_color_zig.addObject(lib_color);
+	
+    // Utilities
     const file_io_module = b.addModule("file_io", .{
         .root_source_file = b.path("src/file-io/file-io.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "colors_h", .module = colors_h_module },
+            .{ .name = "colors_h", .module = colors_h_translation_module },
         },
     });
 
     const imports: []const Module.Import = &.{
         .{ .name = "options", .module = injectedOptions.createModule() },
-        .{ .name = "colors", .module = colors_module },
+        .{ .name = "colors", .module = lib_color_zig },
         .{ .name = "file_io", .module = file_io_module },
     };
 
@@ -188,28 +201,29 @@ pub fn build(b: *Build) !void {
 
     b.step("write-info", "Generate app_info.h").dependOn(&write_info.step);
 
+
     // LSF
     const lsf_src_files = [_][]const u8{ "src/ls/main.c", "src/stat/do_stat.c", "src/ctypes/strbuild.c", "src/ctypes/table.c" };
-    const lsf = buildCModule(b, &options, &lsf_src_files, cflags.constSlice());
+    const lsf = buildCModule(b, &options, lib_color, &lsf_src_files, cflags.constSlice());
     buildCli(b, "lsf", lsf, &options);
 
     // STATF
     const statf_src_files = [_][]const u8{ "src/stat/main.c", "src/stat/do_stat.c", "src/ctypes/strbuild.c", "src/ctypes/table.c" };
-    const statf = buildCModule(b, &options, &statf_src_files, cflags.constSlice());
+    const statf = buildCModule(b, &options, lib_color, &statf_src_files, cflags.constSlice());
     buildCli(b, "statf", statf, &options);
 
     // TOUCHF
     const touchf_src_files = [_][]const u8{ "src/touch/main.c", "src/ctypes/table.c" };
-    const touchf = buildCModule(b, &options, &touchf_src_files, cflags.constSlice());
+    const touchf = buildCModule(b, &options, lib_color, &touchf_src_files, cflags.constSlice());
     buildCli(b, "touchf", touchf, &options);
 
     // MVF
     const mvf_main = b.path("src/file-io/mv/main.zig");
-    const mvf = buildZigModule(b, &options, mvf_main, imports);
+    const mvf = buildZigModule(b, &options, lib_color, mvf_main, imports);
     buildCli(b, "mvf", mvf, &options);
 
     // CPF
     const cpf_main = b.path("src/file-io/cp/main.zig");
-    const cpf = buildZigModule(b, &options, cpf_main, imports);
+    const cpf = buildZigModule(b, &options, lib_color, cpf_main, imports);
     buildCli(b, "cpf", cpf, &options);
 }

@@ -7,7 +7,7 @@
 #	include <stdbool.h>
 #endif
 
-#include "../colors.h"
+#include "../libcolor/colors.h"
 #include "../app_info.h"
 #include "file_types.h"
 

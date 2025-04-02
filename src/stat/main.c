@@ -8,9 +8,9 @@
 #include <pwd.h>
 #include <grp.h>
 
-#include "../f_ext_map.h"
+#include "../f_ext_map.c"
 #include "../app_info.h"
-#include "../colors.h"
+#include "../libcolor/colors.h"
 #include "do_stat.h"
 
 #ifndef C23

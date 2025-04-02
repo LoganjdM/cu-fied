@@ -9,9 +9,9 @@
 #include <fcntl.h>
 #include <math.h>
 
-#include "../colors.h"
+#include "../libcolor/colors.h"
 #include "../app_info.h"
-#include "../f_ext_map.h"
+#include "../f_ext_map.c"
 #include "../stat/do_stat.h"
 #define REALLOCARRAY_IMPLEMENTATION
 #define STRDUPA_IMPLEMENTATION

@@ -1,3 +1,4 @@
+#include <unistd.h>
 #include <table.h>
 
 table_t* init_filetype_dict(void) {
