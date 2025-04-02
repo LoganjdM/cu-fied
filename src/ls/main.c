@@ -153,7 +153,7 @@ static inline void free_operands(struct args args) {
 void iterate_over_open_err() {
 	switch (errno) {
 		case ELOOP:
-			fprintf_color(stderr, YELLOW, "(encountered too many symbolic links!)!");
+			fprintf_color(stderr, YELLOW, "(Encountered too many symbolic links!)!");
 		case ENOENT:
 			fprintf_color(stderr, YELLOW, "(does it exist?)!");
 		// we don't have access //
