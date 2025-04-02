@@ -71,9 +71,9 @@ fn buildCModule(b: *Build, options: *const SharedBuildOptions, lib_color: ?*Step
     });
     module.addIncludePath(b.path("src/ctypes"));
     if (lib_color != null) {
-	    module.addObject(lib_color.?);
-	}
-	
+        module.addObject(lib_color.?);
+    }
+
     return module;
 }
 
@@ -144,22 +144,21 @@ pub fn build(b: *Build) !void {
     const check_fmt = b.addFmt(.{ .paths = &fmt_paths, .check = true });
     check_fmt_step.dependOn(&check_fmt.step);
 
-	// LibColor (all programs use this) //
-	const lib_color_files = [_][]const u8{ "src/libcolor/colors.c" };
-	const lib_color_module: *Module = buildCModule(b, &options, null, &lib_color_files, cflags.constSlice());
-	// const lib_color_static_lib = 
-	const lib_color = b.addObject(.{
+    // LibColor (all programs use this) //
+    const lib_color_files = [_][]const u8{"src/libcolor/colors.c"};
+    const lib_color_module: *Module = buildCModule(b, &options, null, &lib_color_files, cflags.constSlice());
+    // const lib_color_static_lib =
+    const lib_color = b.addObject(.{
         .name = "libcolor",
         .root_module = lib_color_module,
     });
-	
-	
+
     const colors_h_translation_module = b.addTranslateC(.{
         .root_source_file = b.path("src/libcolor/colors.h"),
         .target = target,
         .optimize = optimize,
     }).createModule();
-    
+
     const lib_color_zig = b.addModule("colors", .{
         .root_source_file = b.path("src/libcolor/colors.zig"),
         .target = target,
@@ -169,8 +168,8 @@ pub fn build(b: *Build) !void {
             .{ .name = "colors_h", .module = colors_h_translation_module },
         },
     });
-	lib_color_zig.addObject(lib_color);
-	
+    lib_color_zig.addObject(lib_color);
+
     // Utilities
     const file_io_module = b.addModule("file_io", .{
         .root_source_file = b.path("src/file-io/file-io.zig"),
@@ -200,9 +199,8 @@ pub fn build(b: *Build) !void {
 
     b.step("write-info", "Generate app_info.h").dependOn(&write_info.step);
 
-
     // LSF
-    const lsf_src_files = [_][]const u8{ "src/ls/main.c", "src/stat/do_stat.c", "src/ctypes/strbuild.c", "src/ctypes/table.c" };
+    const lsf_src_files = [_][]const u8{ "src/ls/main.c", "src/ls/print.c", "src/stat/do_stat.c", "src/ctypes/strbuild.c", "src/ctypes/table.c" };
     const lsf = buildCModule(b, &options, lib_color, &lsf_src_files, cflags.constSlice());
     buildCli(b, "lsf", lsf, &options);
 

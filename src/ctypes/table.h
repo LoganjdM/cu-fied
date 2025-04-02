@@ -1,3 +1,6 @@
+#ifndef TABLE_H
+#	define TABLE_H
+
 #ifndef _STDLIB_H
 #	define __need_size_t
 #	include <stddef.h>
@@ -38,3 +41,5 @@ struct table {
 
 table_t* ht_create(size_t starting_cap);
 void ht_free(table_t* ht);
+
+#endif
