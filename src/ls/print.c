@@ -12,6 +12,10 @@
 #include "../libcolor/colors.h"
 #include "common.h"
 
+#define STRDUPA_IMPLEMENTATION
+#	define STRDUPA_IMPLEMENTED
+#	include "../polyfill.h"
+
 float simplify_file_size(const size_t f_size, char* unit, const struct args args) {
 	*unit = 0;
 	// this shows ULONG_MAX on my system is 19 digits long, perfectly representable by 8 bits //
