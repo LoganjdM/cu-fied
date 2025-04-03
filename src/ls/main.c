@@ -16,11 +16,7 @@ bool parse_argv(const int argc, const char** argv, struct args* arg_buf) {
 	assert(arg_buf);
 	bool ret = true;
 
-	if (argc == 1) {
-		arg_buf->operandc = 1;
-		arg_buf->operandv[0] = strdup(".");
-		if (!arg_buf->operandv[0]) return false;
-	} for (int i=1; i<argc; ++i) {
+	for (int i=1; i<argc; ++i) {
 		#define ARG argv[i]
 
 		if (ARG[0] != '-') {
@@ -139,7 +135,11 @@ bool parse_argv(const int argc, const char** argv, struct args* arg_buf) {
 		}
 		
 		#undef ARG
-	}
+	} if (arg_buf->operandc == 0) {
+		arg_buf->operandc = 1;
+		arg_buf->operandv[0] = strdup(".");
+		if (!arg_buf->operandv[0]) return false;
+	} 
 	
 	return ret;
 }
