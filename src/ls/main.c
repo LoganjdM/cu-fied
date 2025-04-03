@@ -16,6 +16,7 @@ bool parse_argv(const int argc, const char** argv, struct args* arg_buf) {
 	assert(arg_buf);
 	bool ret = true;
 
+	arg_buf->operandc = 0;
 	for (int i=1; i<argc; ++i) {
 		#define ARG argv[i]
 
@@ -94,18 +95,18 @@ bool parse_argv(const int argc, const char** argv, struct args* arg_buf) {
 			// lol spell checker doesn't like german //
 			// gotta deal with numbers und sheisse, da is verruckt, ich werde mich TOTEN //
 			if ((arg_tok = strtok(arg_tok, "="))) {
-				if ((arg_tok = strtok(NULL, "="))) {
-					if (IS_ARG(arg_tok, "--recurse", "-R")) {
-						unsigned int recurse_parse = (unsigned)atoi(arg_tok);
-						// don't overflow and assume max recursion if parse failed or input was 0 //
-						if (recurse_parse == 0 || recurse_parse > 0xFFFF)
-							arg_buf->args |= (0xFFFF << 8);
-						else arg_buf->args |= (recurse_parse << 8);	
-					} else if (IS_ARG(arg_tok, "--human-readable", "-hr")) {
-						unsigned int hr_val = (unsigned)atoi(arg_tok);
-						if (hr_val <= 3) arg_buf->args |= (hr_val << 6);
-					} continue;
-				}
+				if (IS_ARG(arg_tok, "--recurse", "-R")) {
+					arg_tok = strtok(NULL, "=");
+					unsigned int recurse_parse = (unsigned)atoi(arg_tok);
+					// don't overflow and assume max recursion if parse failed or input was 0 //
+					if (recurse_parse == 0 || recurse_parse > 0xFFFF)
+						arg_buf->args |= (0xFFFF << 8);
+					else arg_buf->args |= (recurse_parse << 8);	
+				} else if (IS_ARG(arg_tok, "--human-readable", "-hr")) {
+					arg_tok = strtok(NULL, "=");
+					unsigned int hr_val = (unsigned)atoi(arg_tok);
+					if (hr_val <= 3) arg_buf->args |= (hr_val << 6);
+				} continue;
 			}
 
 			// lsf -fac -U etc... btw pronounce those args out loud :) //
@@ -132,14 +133,14 @@ bool parse_argv(const int argc, const char** argv, struct args* arg_buf) {
 				} fprintf_color(stderr, YELLOW, "\"%s\" is not a valid argument!\n", ARG);
 				break;
 			}
-		}
+		}  
 		
 		#undef ARG
 	} if (arg_buf->operandc == 0) {
 		arg_buf->operandc = 1;
 		arg_buf->operandv[0] = strdup(".");
 		if (!arg_buf->operandv[0]) return false;
-	} 
+	}
 	
 	return ret;
 }
@@ -450,6 +451,9 @@ int main(int argc, char** argv) {
 		struct winsize tty_size = {0};
 		ioctl(STDOUT_FILENO, TIOCGWINSZ, &tty_size);
 		const size_t longest_f_string = get_longest_f_string(da_files, file_len, args);
+		#ifndef NDEBUG
+		printf("longest file string: %d\n", longest_f_string);
+		#endif
 		const size_t f_per_row = tty_size.ws_col / longest_f_string;
 
 

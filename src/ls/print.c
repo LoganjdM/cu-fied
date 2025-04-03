@@ -68,7 +68,7 @@ size_t get_longest_f_string(const file_t* files, const size_t file_len, const st
 	}
 
 	size_t result = longest_f_name + 3;
-	uint8_t arg_hr = ARG_HR(args.arg);
+	uint8_t arg_hr = ARG_HR(args.args);
 	switch (arg_hr) {
 		case 0: break;
 		case 1:
@@ -77,9 +77,10 @@ size_t get_longest_f_string(const file_t* files, const size_t file_len, const st
 		default:
 			float size_hr = simplify_file_size(longest_f_size, (char*)alloca(1), args);
 			char longest_hr_f_size[100] = {0};
-			if (arg_hr == 2) result += snprintf(longest_hr_f_size, 100, "%.1f XiB", size_hr);
-			else result += snprintf(longest_hr_f_size, 100, "%.1f XB", size_hr);
-
+			if (size_hr < 1000) {
+				if (arg_hr == 2) result += snprintf(longest_hr_f_size, 100, "%.1f XiB", size_hr);
+				else result += snprintf(longest_hr_f_size, 100, "%.1f XB", size_hr);
+			} else result += snprintf(longest_hr_f_size, 100, "%.0f Blocks", size_hr);
 			result += 5;//( ) //
 			if (args.args & dir_contents) result += 9;//Contains //
 	}
@@ -176,16 +177,17 @@ bool list_files(file_t* files, const size_t file_len,
 
 		char* file_size = NULL;
 		if (arg_hr == 1) {
-			if (!(file_size = malloc(floor(log10(FILE.stat.st_blocks)) + 5))) {
+			if (!(file_size = malloc(floor(log10(FILE.stat.st_blocks)) + 10))) {
 				fucky_wucky = true;
 				continue;
 			}
 			#ifdef __APPLE__
 			// https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/stat.2.html //
-			sprintf(file_size, "%lli B", FILE.stat.st_blocks);
+			sprintf(file_size, "%lli Blocks)", FILE.stat.st_blocks);
 			#else
-			sprintf(file_size, "%lu B", FILE.stat.st_blocks);
+			sprintf(file_size, "%lu Blocks)", FILE.stat.st_blocks);
 			#endif
+			
 		} else {
 			char unit = 0;
 			const float size_hr = simplify_file_size(FILE.stat.st_blocks, &unit, args);
@@ -199,12 +201,13 @@ bool list_files(file_t* files, const size_t file_len,
 			else if (arg_hr == 2) snprintf(file_size, MAX_FILE_SIZE_HR_LEN, "%.1f %ciB) ", size_hr, unit);
 			else snprintf(file_size, MAX_FILE_SIZE_HR_LEN, "%.1f %cB) ", size_hr, unit);
 			#undef MAX_FILE_SIZE_HR_LEN
-			string_len += sb_append(&sb, file_size);
-		} free(file_size);
+		}
+		string_len += sb_append(&sb, file_size);
+		free(file_size);
 		
 		dont_list_size:
 
-		for (size_t	 i=longest_string-string_len; i>0; --i) sb_append(&sb, " ");
+		for (size_t	i=longest_string-string_len; i>0; --i) sb_append(&sb, " ");
 		++printed;
 		
 		printf("%s", sb.str);
