@@ -214,7 +214,7 @@ void close_range_binding(int start, int end, int flags) {
 }
 
 bool query_files(char* path, const int fd,
-				file_t* da_files, size_t* file_len, size_t file_cap,
+				file_t** da_files, size_t* file_len, size_t file_cap,
 				unsigned int da_fd[static 100], size_t* fd_len,
 				struct args* args) {
 	assert(fd != -1);
@@ -226,16 +226,16 @@ bool query_files(char* path, const int fd,
 	bool had_dirs = false;
 	struct dirent* d_stream = NULL;
 	for (; (d_stream = readdir(dfp)); ++*file_len) {
-		#define FILE da_files[*file_len - 1]
+		#define FILE (*da_files)[*file_len - 1]
 		if (*file_len > file_cap) {
 			if (file_cap > file_cap << 1) {
 				errno = EOVERFLOW;
 				return false;
 			} file_cap <<= 1;
 
-			void* np = reallocarray(da_files, file_cap, sizeof(file_t));
+			void* np = reallocarray(*da_files, file_cap, sizeof(file_t));
 			if (!np) return false;
-			da_files = (file_t*)np;
+			*da_files = (file_t*)np;
 		} if (*fd_len == 100) {
 			close_range_binding(da_fd[0], da_fd[99], 0);
 			*fd_len = 0;
@@ -269,8 +269,8 @@ bool query_files(char* path, const int fd,
 		FILE.ok_st = true;
 		FILE.stat = st;
 
-		if (S_ISDIR(st.st_mode) && ARG_RECURSE(args->arg) > 0) {
-			args->operandv[args->operandc] = fullpath; // why dupe when can re-use //
+		if (S_ISDIR(st.st_mode) && (ARG_RECURSE(args->args) > 0)) {
+			args->operandv[args->operandc] = fullpath; // re-use instead of re-allocating.
 			++args->operandc;
 			had_dirs = true;
 		} else free(fullpath);
@@ -423,7 +423,7 @@ int main(int argc, char** argv) {
 		}
 		file_t* da_files = (file_t*)calloc(16, sizeof(file_t));
 		size_t file_len = 1;
-		if (!query_files(OPERAND, fd, da_files, &file_len, 16, da_fd, &fd_len, &args)) {
+		if (!query_files(OPERAND, fd, &da_files, &file_len, 16, da_fd, &fd_len, &args)) {
 			switch (errno) {
 				case EOVERFLOW:
 					fprintf_color(stderr, RED, "Failed to allocate memory for files! (File capacity overflowed!)\n");
@@ -455,7 +455,6 @@ int main(int argc, char** argv) {
 		printf("longest file string: %d\n", longest_f_string);
 		#endif
 		const size_t f_per_row = tty_size.ws_col / longest_f_string;
-
 
 		bool list_files_failed = false;
 		if (ARG_SORT(args.args) == 1)
