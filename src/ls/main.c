@@ -46,7 +46,7 @@ bool parse_argv(const int argc, const char** argv, struct args* arg_buf) {
 			arg_buf->args |= (0b10 << 2); continue;
 		} else if (!strcmp(ARG, "--stat")) {
 			arg_buf->args |= include_stat; continue;
-		} 
+		}
 		// more logic needed //
 		#define IS_ARG(arg, l, s) (!strcmp(arg, l) || !strcmp(arg, s))
 		else if (IS_ARG(ARG, "--recurse", "-R")) {
@@ -59,7 +59,7 @@ bool parse_argv(const int argc, const char** argv, struct args* arg_buf) {
 			if (recurse_parse == 0 || recurse_parse > 0xFFFF)
 				arg_buf->args |= (0xFFFF << 8);
 			else arg_buf->args |= (recurse_parse << 8);
-			
+
 			continue;
 		} else if (IS_ARG(ARG, "--human-readable", "-hr")) {
 			if (i == (argc -1)) {
@@ -101,7 +101,7 @@ bool parse_argv(const int argc, const char** argv, struct args* arg_buf) {
 					// don't overflow and assume max recursion if parse failed or input was 0 //
 					if (recurse_parse == 0 || recurse_parse > 0xFFFF)
 						arg_buf->args |= (0xFFFF << 8);
-					else arg_buf->args |= (recurse_parse << 8);	
+					else arg_buf->args |= (recurse_parse << 8);
 				} else if (IS_ARG(arg_tok, "--human-readable", "-hr")) {
 					arg_tok = strtok(NULL, "=");
 					unsigned int hr_val = (unsigned)atoi(arg_tok);
@@ -133,15 +133,15 @@ bool parse_argv(const int argc, const char** argv, struct args* arg_buf) {
 				} fprintf_color(stderr, YELLOW, "\"%s\" is not a valid argument!\n", ARG);
 				break;
 			}
-		}  
-		
+		}
+
 		#undef ARG
 	} if (arg_buf->operandc == 0) {
 		arg_buf->operandc = 1;
 		arg_buf->operandv[0] = strdup(".");
 		if (!arg_buf->operandv[0]) return false;
 	}
-	
+
 	return ret;
 }
 
@@ -193,7 +193,7 @@ void close_range_binding(int start, int end, int flags) {
 		"movl $0, %%edx\n"
 		"syscall\n"
 		: // no out //
-		: [start] "r"(start), 
+		: [start] "r"(start),
 		  [end] "r"(end)
 		: "%eax", "%edi", "%esi", "%edx"
 	);
@@ -240,14 +240,14 @@ bool query_files(char* path, const int fd,
 			close_range_binding(da_fd[0], da_fd[99], 0);
 			*fd_len = 0;
 		}
-		
+
 		FILE.name = strdup(d_stream->d_name);
 		if (!FILE.name) return false;
 
 		char* fullpath = malloc(strlen(path)+strlen(FILE.name)+2);
 		if (!fullpath) return false;
 		sprintf(fullpath, "%s/%s", path, FILE.name);
-		
+
 		int fd = open(fullpath, 0);
 		if (fd == -1) {
 			fprintf_color(stderr, YELLOW, "Ran into an error listing files! ");
@@ -333,7 +333,7 @@ int main(int argc, char** argv) {
 		if (fd == -1) {
 			// shouldn't happen, somethings gone wrong if it has //
 			assert(errno != EMFILE);
-		
+
 			fprintf_color(stderr, YELLOW, "Could not list ");
 			fprintf_color(stderr, BLUE, "%s ", OPERAND);
 			if (errno == ENFILE) {
@@ -345,7 +345,7 @@ int main(int argc, char** argv) {
 				fprintf_color(stderr, RED, "(kernel is out of memory!)");
 				fprintf_color(stderr, YELLOW, "!");
 				retcode = 252;
-				goto really_bad;	
+				goto really_bad;
 			}
 			iterate_over_open_err();
 			retcode += 2;
@@ -443,7 +443,7 @@ int main(int argc, char** argv) {
 					fprintf_color(stderr, YELLOW, "Didn't have permission to get stat on a file!\n");
 					break;
 				default:
-					fprintf_color(stderr, YELLOW, "Encoutnered an error! (%s : %d)!\n", strerror(errno), errno);
+					fprintf_color(stderr, YELLOW, "Encountered an error! (%s : %d)!\n", strerror(errno), errno);
 					break;
 			}
 		}
@@ -467,7 +467,7 @@ int main(int argc, char** argv) {
 			list_files_failed = list_files(da_files, file_len, longest_f_string, f_ext_map, condition_isndir, f_per_row, args);
 			list_files_failed |= list_files(da_files, file_len, longest_f_string, f_ext_map, condition_isdir, f_per_row, args);
         }
-		
+
 		if (list_files_failed) {
 			fprintf_color(stderr, RED, "Failed to allocate memory for showing file size!\n");
 			retcode += 2;
@@ -475,7 +475,7 @@ int main(int argc, char** argv) {
 
 		for (size_t i=0; i<file_len-1; ++i) free(da_files[i].name);
 		free(da_files);
-		
+
 		#undef OPERAND
 	}
 
