@@ -89,6 +89,26 @@ fn buildZigModule(b: *Build, options: *const SharedBuildOptions, main: LazyPath,
     return module;
 }
 
+fn zigifyLibColor(b: *Build, options: *const SharedBuildOptions, header: LazyPath, zig_module: LazyPath, color_obj: *Build.Step.Compile) *Module {
+    const translated_colors_header = b.addTranslateC(.{
+        .root_source_file = header,
+        .target = options.target,
+        .optimize = options.optimize,
+    }).createModule();
+
+    const lib_color_zig = b.addModule("colors", .{
+        .root_source_file = zig_module,
+        .target = options.target,
+        .optimize = options.optimize,
+        .link_libc = true,
+        .imports = &.{
+            .{ .name = "colors", .module = translated_colors_header },
+        },
+    });
+    lib_color_zig.addObject(color_obj);
+    return lib_color_zig;
+}
+
 pub fn build(b: *Build) !void {
     // General options
     var cflags: std.BoundedArray([]const u8, 16) = .{};
@@ -100,7 +120,7 @@ pub fn build(b: *Build) !void {
         cflags.appendSliceAssumeCapacity(&.{ "-Wextra", "-DNDEBUG" });
         switch (b.release_mode) {
             .fast => {
-                cflags.appendSliceAssumeCapacity(&.{"-O3"});
+                cflags.appendSliceAssumeCapacity(&.{"-O3", "-ffast-math"});
             },
             .safe => {
                 cflags.appendSliceAssumeCapacity(&.{ "-fstack-protector-all", "-O" });
@@ -145,39 +165,17 @@ pub fn build(b: *Build) !void {
     check_fmt_step.dependOn(&check_fmt.step);
 
     // LibColor (all programs use this) //
-    const lib_color_files = [_][]const u8{"src/libcolor/colors.c"};
-    const lib_color_module: *Module = buildCModule(b, &options, null, &lib_color_files, cflags.constSlice());
-    // const lib_color_static_lib =
     const lib_color = b.addObject(.{
         .name = "libcolor",
-        .root_module = lib_color_module,
+        .root_module = buildCModule(b, &options, null, &[_][]const u8{"src/libcolor/colors.c"}, cflags.constSlice()),
     });
-
-    const colors_h_translation_module = b.addTranslateC(.{
-        .root_source_file = b.path("src/libcolor/colors.h"),
-        .target = target,
-        .optimize = optimize,
-    }).createModule();
-
-    const lib_color_zig = b.addModule("colors", .{
-        .root_source_file = b.path("src/libcolor/colors.zig"),
-        .target = target,
-        .optimize = optimize,
-        .link_libc = true,
-        .imports = &.{
-            .{ .name = "colors_h", .module = colors_h_translation_module },
-        },
-    });
-    lib_color_zig.addObject(lib_color);
+    const lib_color_zig = zigifyLibColor(b, &options, b.path("src/libcolor/colors.h"), b.path("src/libcolor/colors.zig"), lib_color);
 
     // Utilities
     const file_io_module = b.addModule("file_io", .{
         .root_source_file = b.path("src/file-io/file-io.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{
-            .{ .name = "colors_h", .module = colors_h_translation_module },
-        },
     });
 
     const imports: []const Module.Import = &.{
@@ -200,17 +198,31 @@ pub fn build(b: *Build) !void {
     b.step("write-info", "Generate app_info.h").dependOn(&write_info.step);
 
     // LSF
-    const lsf_src_files = [_][]const u8{ "src/ls/main.c", "src/ls/print.c", "src/stat/do_stat.c", "src/ctypes/strbuild.c", "src/ctypes/table.c" };
+    const lsf_src_files = [_][]const u8{
+        "src/ls/main.c",
+        "src/ls/print.c",
+        "src/stat/do_stat.c",
+        "src/ctypes/strbuild.c",
+        "src/ctypes/table.c",
+    };
     const lsf = buildCModule(b, &options, lib_color, &lsf_src_files, cflags.constSlice());
     buildCli(b, "lsf", lsf, &options);
 
     // STATF
-    const statf_src_files = [_][]const u8{ "src/stat/main.c", "src/stat/do_stat.c", "src/ctypes/strbuild.c", "src/ctypes/table.c" };
+    const statf_src_files = [_][]const u8{
+        "src/stat/main.c",
+        "src/stat/do_stat.c",
+        "src/ctypes/strbuild.c",
+        "src/ctypes/table.c",
+    };
     const statf = buildCModule(b, &options, lib_color, &statf_src_files, cflags.constSlice());
     buildCli(b, "statf", statf, &options);
 
     // TOUCHF
-    const touchf_src_files = [_][]const u8{ "src/touch/main.c", "src/ctypes/table.c" };
+    const touchf_src_files = [_][]const u8{
+        "src/touch/main.c",
+        "src/ctypes/table.c",
+    };
     const touchf = buildCModule(b, &options, lib_color, &touchf_src_files, cflags.constSlice());
     buildCli(b, "touchf", touchf, &options);
 

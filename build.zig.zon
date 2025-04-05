@@ -7,7 +7,12 @@
 
     .minimum_zig_version = "0.14.0",
 
-    .dependencies = .{},
+    .dependencies = .{
+    	.curl = .{
+    		.url = "https://github.com/curl/curl/releases/download/curl-8_13_0/curl-8.13.0.tar.gz",
+    		.hash = "N-V-__8AAHeBSAEaNSUTylbOUCCFAp0qCWheu53KqF3WQWp3"
+    	}
+    },
     .paths = .{
         "build.zig",
         "build.zig.zon",

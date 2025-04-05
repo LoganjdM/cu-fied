@@ -1,5 +1,5 @@
 const std = @import("std");
-const c = @import("colors_h");
+const c = @import("colors");
 
 pub const red = c.RED;
 pub const blue = c.BLUE;
