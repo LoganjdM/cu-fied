@@ -186,9 +186,8 @@ pub fn build(b: *Build) !void {
     });
     
     // z(ig)URL //
-    // FIXME: nasty hack but doing cURL.path("include/curl.h") caused undescriptive `CacheCheckFailed` error :\ //
     const zURL = b.addTranslateC(.{
-        .root_source_file = cURL.path("include/curl.h"),
+        .root_source_file = cURL.path("include/curl/curl.h"),
         .target = options.target,
         .optimize = options.optimize,
     }).createModule();
