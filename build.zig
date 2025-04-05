@@ -74,11 +74,12 @@ fn buildCModule(b: *Build, options: *const SharedBuildOptions, lib_color: ?*Step
     module.addIncludePath(b.path("src/ctypes"));
     if (lib_color != null) {
         module.addObject(lib_color.?);
-    } if (cURL != null) {
-	    module.addIncludePath(cURL.?.path("include/curl"));
-	    module.linkSystemLibrary("curl", .{});
-	}
-	
+    }
+    if (cURL != null) {
+        module.addIncludePath(cURL.?.path("include/curl"));
+        module.linkSystemLibrary("curl", .{});
+    }
+
     return module;
 }
 
@@ -128,7 +129,7 @@ pub fn build(b: *Build) !void {
         cflags.appendSliceAssumeCapacity(&.{ "-Wextra", "-DNDEBUG" });
         switch (b.release_mode) {
             .fast => {
-                cflags.appendSliceAssumeCapacity(&.{"-O3", "-ffast-math"});
+                cflags.appendSliceAssumeCapacity(&.{ "-O3", "-ffast-math" });
             },
             .safe => {
                 cflags.appendSliceAssumeCapacity(&.{ "-fstack-protector-all", "-O" });
@@ -181,10 +182,10 @@ pub fn build(b: *Build) !void {
 
     // cURL //
     const cURL = b.dependency("cURL", .{
-    	.target = target,
-    	.optimize = optimize,
+        .target = target,
+        .optimize = optimize,
     });
-    
+
     // z(ig)URL //
     const zURL = b.addTranslateC(.{
         .root_source_file = cURL.path("include/curl/curl.h"),
@@ -199,12 +200,7 @@ pub fn build(b: *Build) !void {
         .optimize = optimize,
     });
 
-    const imports: []const Module.Import = &.{
-        .{ .name = "options", .module = injectedOptions.createModule() },
-        .{ .name = "colors", .module = lib_color_zig },
-        .{ .name = "file_io", .module = file_io_module },
-        .{ .name = "zURL", .module = zURL}
-    };
+    const imports: []const Module.Import = &.{ .{ .name = "options", .module = injectedOptions.createModule() }, .{ .name = "colors", .module = lib_color_zig }, .{ .name = "file_io", .module = file_io_module }, .{ .name = "zURL", .module = zURL } };
 
     // Update versioning on the C side first. //
     const info_dir = b.addWriteFiles();
