@@ -54,7 +54,7 @@ jobs:
         with:
           version: 0.14.0
       - name: 📦 Install dependencies
-        run: sudo apt-get install -y libcurl4-gnutls-dev
+        run: sudo apt-get install -y libcurl4-gnutls-dev && sudo apt-get install -y help2man
       - name: 🔧 Build
         run: zig build -Dtarget=${{ matrix.target }} ${{ matrix.zig-flags }}
 
