@@ -54,7 +54,7 @@ jobs:
         with:
           version: 0.14.0
       - name: 📦 Install dependencies
-        run: sudo apt-get install -y libcurl
+        run: sudo apt-get install -y curl
       - name: 🔧 Build
         run: zig build -Dtarget=${{ matrix.target }} ${{ matrix.zig-flags }}
 
