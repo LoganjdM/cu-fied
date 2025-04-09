@@ -215,11 +215,11 @@ int main(int argc, char** argv) {
 		
 		char* hr_mode = get_readable_mode(st.st_mode);
 		if (hr_mode) {
-			printf("\tMode: (%d/%s)", st.st_mode, hr_mode);
+			printf("\tMode: (%o/%s)", st.st_mode, hr_mode);
 			free(hr_mode);
 		} else {
 			fprintf_color(stderr, YELLOW, "\t Failed to allocate memory for human readable mode!\n");
-			printf("\tMode: (%d)", st.st_mode);
+			printf("\tMode: (%o)", st.st_mode);
 		}
 
 		#ifdef __APPLE__
