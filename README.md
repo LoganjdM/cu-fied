@@ -10,8 +10,8 @@ First off, it is primarily designed for the x86 and ARM platforms of linux and m
 With that out of the way, you only need these dependencies:
 
 - [Zig](https://ziglang.org/) 0.14.0 or later (0.14.0 is needed for proper C23 support.)
-- prefereabbly [cURL](https://github.com/curl/curl) installed via package manager.
-###### However it is planned to statically link against cURL if it is not installed globally
+- [cURL](https://github.com/curl/curl) installed via a system package manager.
+  (Note that it is planned to statically link cURL if it is not installed globally.)
 
 ### Helpful commands
 
