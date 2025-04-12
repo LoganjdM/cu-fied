@@ -1,8 +1,11 @@
 const std = @import("std");
 const assert = std.debug.assert;
+const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const log = std.log;
 const mem = std.mem;
 const Allocator = mem.Allocator;
+const process = std.process;
+const ArgIterator = process.ArgIterator;
 const fs = std.fs;
 const File = fs.File;
 const builtin = @import("builtin");
@@ -11,7 +14,7 @@ const color = @import("colors");
 const file_io = @import("file_io");
 const options = @import("options");
 
-const Params = packed struct {
+const Arguments = packed struct {
     recursive: bool = false,
     force: bool = false,
     link: bool = false,
@@ -19,31 +22,39 @@ const Params = packed struct {
     verbose: bool = false,
 };
 
+const Params = struct {
+    arguments: *Arguments,
+    positionals: *ArrayListUnmanaged([*:0]u8),
+};
+
 fn isArg(arg: [*:0]const u8, comptime short: []const u8, comptime long: []const u8) bool {
     return std.mem.eql(u8, arg[0..short.len], short) or std.mem.eql(u8, arg[0..long.len], long);
 }
 
-fn parseArgs(argv: [][*:0]u8, allocator: Allocator, stdout: *const File.Writer, files: *std.ArrayListUnmanaged([*:0]u8)) (error{ OutOfMemory, InvalidArgument } || File.WriteError)!Params {
-    var args: Params = .{};
+fn parseArgs(
+    allocator: Allocator,
+    args: *ArgIterator,
+    stdout: *const File.Writer,
+) (error{OutOfMemory} || File.WriteError)!Params {
+    var arguments: Arguments = .{};
+    var positionals: ArrayListUnmanaged([*:0]u8) = .{};
 
-    for (argv, 0..) |arg, i| {
-        if (i == 0) continue; // skip exec
-
+    while (args.next()) |arg| {
         if (arg[0] != '-') {
-            try files.append(allocator, arg);
+            try positionals.append(allocator, @constCast(arg));
             continue;
         }
 
         if (isArg(arg, "-r", "--recursive")) {
-            args.recursive = true;
+            arguments.recursive = true;
         } else if (isArg(arg, "-f", "--force")) {
-            args.force = true;
+            arguments.force = true;
         } else if (isArg(arg, "-l", "--link")) {
-            args.link = true;
+            arguments.link = true;
         } else if (isArg(arg, "-i", "--interactive")) {
-            args.interactive = true;
+            arguments.interactive = true;
         } else if (isArg(arg, "-v", "--verbose")) {
-            args.verbose = true;
+            arguments.verbose = true;
         } else if (isArg(arg, "-h", "--help")) {
             const help_message = @embedFile("help.txt");
             try stdout.print(help_message, .{});
@@ -57,9 +68,11 @@ fn parseArgs(argv: [][*:0]u8, allocator: Allocator, stdout: *const File.Writer, 
             std.process.exit(0);
         }
     }
-    if (files.items.len < 2) return error.InvalidArgument;
 
-    return args;
+    return Params{
+        .arguments = &arguments,
+        .positionals = &positionals,
+    };
 }
 
 fn getLongestOperand(files: [][*:0]u8) u64 {
@@ -87,26 +100,41 @@ pub fn main() u8 {
     const stdout = std.io.getStdOut();
     const stdout_writer = stdout.writer();
 
-    var files = std.ArrayListUnmanaged([*:0]u8){};
-    defer files.deinit(gpa);
+    var args_iter = try std.process.argsWithAllocator(gpa);
+    defer args_iter.deinit();
 
-    const args = parseArgs(std.os.argv, gpa, &stdout_writer, &files) catch |err| {
-        if (err == error.InvalidArgument) {
-            const msg = if (files.items.len == 0) "Missing file arguments!" else "Missing destination file argument!";
-            color.print(stderr, color.red, "{s}\n", .{msg});
-            return 2;
-        } else {
+    std.log.debug("args: {s}\n", .{std.os.argv});
+
+    _ = args_iter.next();
+
+    const args = parseArgs(
+        gpa,
+        &args_iter,
+        &stdout_writer,
+    ) catch |err| switch (err) {
+        error.OutOfMemory => {
             color.print(stderr, color.red, "Failed to reallocate memory for extra file arguments!\n", .{});
             return 1;
-        }
+        },
+        else => {
+            return 1;
+        },
     };
+    defer args.positionals.deinit(gpa);
 
-    log.debug("operands:\n", .{});
-    for (files.items) |file| {
-        log.debug("\t{s}\n", .{file});
+    if (args.positionals.items.len < 2) {
+        const msg = if (args.positionals.items.len == 0) "Missing file arguments!" else "Missing destination file argument!";
+        color.print(stderr, color.red, "{s}\n", .{msg});
+
+        return 2;
     }
 
-    const dest: []u8 = gpa.dupe(u8, std.mem.span(files.pop().?)) catch {
+    log.debug("operands:", .{});
+    for (args.positionals.items) |file| {
+        log.debug("\t{s}", .{file});
+    }
+
+    const dest: []u8 = gpa.dupe(u8, std.mem.span(args.positionals.pop().?)) catch {
         color.print(stderr, color.red, "Failed to allocate memory for destination file argument!\n", .{});
         return 1;
     };
@@ -117,8 +145,8 @@ pub fn main() u8 {
     var verbose_longest_operand: u64 = undefined;
     var verbose_zig_padding_char: []u8 = undefined;
     var verbose_padding_char: [*c]u8 = undefined;
-    if (args.verbose) {
-        verbose_longest_operand = getLongestOperand(files.items);
+    if (args.arguments.verbose) {
+        verbose_longest_operand = getLongestOperand(args.positionals.items);
         verbose_zig_padding_char = gpa.alloc(u8, verbose_longest_operand) catch {
             color.print(stderr, color.red, "Failed to allocate memory for verbose padding char!\n", .{});
             return 1;
@@ -126,10 +154,10 @@ pub fn main() u8 {
         @memset(verbose_zig_padding_char, '-');
         verbose_padding_char = @ptrCast(verbose_zig_padding_char);
     }
-    defer if (args.verbose) gpa.free(verbose_zig_padding_char);
+    defer if (args.arguments.verbose) gpa.free(verbose_zig_padding_char);
 
     var dot_count: u8 = 0;
-    for (files.items) |file_slice| {
+    for (args.positionals.items) |file_slice| {
         // these *:0 are really annoying so do it the c way of looking for \0 //
         const file: []u8 = gpa.alloc(u8, std.mem.len(file_slice)) catch {
             color.print(stderr, color.red, "Failed to allocate memory for source file argument!\n", .{});
@@ -138,7 +166,7 @@ pub fn main() u8 {
         @memcpy(file, file_slice);
         defer gpa.free(file);
 
-        if (args.verbose) {
+        if (args.arguments.verbose) {
             if (dot_count < 3) dot_count += 1 else dot_count -= 2;
             const padding = (verbose_longest_operand - file.len);
             // printf may as well be its own programming language kek //
@@ -147,21 +175,23 @@ pub fn main() u8 {
 
         // GNU source looking function call //
         file_io.copy(file, dest, .{
-            .recursive = args.recursive,
-            .force = args.force,
-            .link = args.link,
+            .recursive = args.arguments.recursive,
+            .force = args.arguments.force,
+            .link = args.arguments.link,
         }) catch |err| {
             color.print(stderr, color.red, "Failed to copy file ", .{});
             color.print(stderr, color.blue, " {s}", .{file});
-            const reason = blk: {
-                if (err == error.PermissionDenied) break :blk "Do you have permission?";
-                if (err == error.FileNotFound) break :blk "does it exist?";
-                if (err == error.BadPathName) break :blk "is it a valid path?";
-                break :blk err;
+            const reason = switch (err) {
+                error.AccessDenied => "Do you have permission?",
+                error.FileNotFound => "does it exist?",
+                error.BadPathName => "is it a valid path?",
+                else => "Oops",
             };
-            color.print(stderr, color.red, "({any})\n", .{reason});
+
+            color.print(stderr, color.red, "({s})\n", .{reason});
             continue;
         };
     }
+
     return 0;
 }
