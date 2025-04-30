@@ -155,22 +155,30 @@ void iterate_over_open_err() {
 	switch (errno) {
 		case ELOOP:
 			fprintf_color(stderr, YELLOW, "(Encountered too many symbolic links!)!");
+			break;
 		case ENOENT:
 			fprintf_color(stderr, YELLOW, "(does it exist?)!");
+			break;
 		// we don't have access //
 		case EACCES:
 			fprintf_color(stderr, YELLOW, "(do you have access to it?)!");
+			break;
 		case EPERM:
 			fprintf_color(stderr, YELLOW, "(do you have access to it?)!");
+			break;
 		case EROFS:
 			fprintf_color(stderr, YELLOW, "(do you have access to it?)!");
+			break;
 		// its not valid //
 		case ENAMETOOLONG:
 			fprintf_color(stderr, YELLOW, "(is it a valid file?)!");
+			break;
 		case EINVAL:
 			fprintf_color(stderr, YELLOW, "(is it a valid file?)!");
+			break;
 		case ENXIO:
 			fprintf_color(stderr, YELLOW, "(is it a valid file?)!");
+			break;
 		default:
 			fprintf_color(stderr, YELLOW, "(uh oh, errno: %d)!", errno);
 	}
