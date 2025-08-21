@@ -50,7 +50,7 @@ jobs:
           persist-credentials: false
           set-safe-directory: true
       - name: 🦎 Install Zig
-        uses: mlugg/setup-zig@a67e68dc5c8281d9608136d3d7ca1b282213e4ac # v1.2.1
+        uses: mlugg/setup-zig@8d6198c65fb0feaa111df26e6b467fea8345e46f # v2.0.5
         with:
           version: 0.14.1
       - name: 📦 Install dependencies
@@ -75,7 +75,7 @@ jobs:
           persist-credentials: false
           set-safe-directory: true
       - name: 🦎 Install Zig
-        uses: mlugg/setup-zig@a67e68dc5c8281d9608136d3d7ca1b282213e4ac # v1.2.1
+        uses: mlugg/setup-zig@8d6198c65fb0feaa111df26e6b467fea8345e46f # v2.0.5
         with:
           version: 0.14.1
       - name: ✨ Verify formatting
