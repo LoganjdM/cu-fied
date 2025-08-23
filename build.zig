@@ -56,9 +56,7 @@ fn buildCli(b: *Build, name: []const u8, root_module: *Module, options: *const S
     if (options.emit_man) buildManPage(b, exe);
 }
 
-// TODO: This is hack, if we yoink cURL header from zon file then we should yoink lib as well but im lazy //
-// though honestly, we SHOULD use linkSystemLibrary ifg we can as it I believe it dyanimically links //
-fn buildCModule(b: *Build, options: *const SharedBuildOptions, lib_color: ?*Step.Compile, cURL: ?*Build.Dependency, srcs: []const []const u8, cflags: []const []const u8) *Module {
+fn buildCModule(b: *Build, options: *const SharedBuildOptions, lib_color: ?*Step.Compile, srcs: []const []const u8, cflags: []const []const u8) *Module {
     const module = b.createModule(.{
         .target = options.target,
         .optimize = options.optimize,
@@ -69,19 +67,14 @@ fn buildCModule(b: *Build, options: *const SharedBuildOptions, lib_color: ?*Step
         .flags = cflags,
     });
     module.addIncludePath(b.path("src/ctypes"));
-    if (lib_color != null) {
-        module.addObject(lib_color.?);
-    }
-    if (cURL != null) {
-        module.addIncludePath(cURL.?.path("include/curl"));
-        module.linkSystemLibrary("curl", .{});
+
+    if (lib_color) |lib| {
+        module.addObject(lib);
     }
 
     return module;
 }
 
-// TODO: This is hack, if we yoink cURL header from zon file then we should yoink lib as well but im lazy //
-// though honestly, we SHOULD use linkSystemLibrary ifg we can as it I believe it dyanimically links //
 fn buildZigModule(b: *Build, options: *const SharedBuildOptions, main: LazyPath, imports: []const Module.Import) *Module {
     const module = b.createModule(.{
         .root_source_file = main,
@@ -90,7 +83,6 @@ fn buildZigModule(b: *Build, options: *const SharedBuildOptions, main: LazyPath,
         .link_libc = true,
         .imports = imports,
     });
-    module.linkSystemLibrary("curl", .{});
 
     return module;
 }
@@ -153,7 +145,7 @@ pub fn build(b: *Build) !void {
     // LibColor (all programs use this) //
     const lib_color = b.addObject(.{
         .name = "libcolor",
-        .root_module = buildCModule(b, &options, null, null, &[_][]const u8{"src/libcolor/colors.c"}, cflags.items),
+        .root_module = buildCModule(b, &options, null, &[_][]const u8{"src/libcolor/colors.c"}, cflags.items),
     });
     const lib_color_zig = b.createModule(.{
         .root_source_file = b.path("src/libcolor/colors.zig"),
@@ -161,19 +153,6 @@ pub fn build(b: *Build) !void {
         .optimize = options.optimize,
         .link_libc = false,
     });
-
-    // cURL //
-    const cURL = b.dependency("cURL", .{
-        .target = target,
-        .optimize = optimize,
-    });
-
-    // z(ig)URL //
-    const zURL = b.addTranslateC(.{
-        .root_source_file = cURL.path("include/curl/curl.h"),
-        .target = options.target,
-        .optimize = options.optimize,
-    }).createModule();
 
     // Utilities
     const file_io_module = b.createModule(.{
@@ -186,7 +165,6 @@ pub fn build(b: *Build) !void {
         .{ .name = "options", .module = injectedOptions.createModule() },
         .{ .name = "colors", .module = lib_color_zig },
         .{ .name = "file_io", .module = file_io_module },
-        .{ .name = "zURL", .module = zURL },
     };
 
     // Update versioning on the C side first. //
@@ -210,7 +188,7 @@ pub fn build(b: *Build) !void {
         "src/ctypes/strbuild.c",
         "src/ctypes/table.c",
     };
-    const lsf = buildCModule(b, &options, lib_color, cURL, &lsf_src_files, cflags.items);
+    const lsf = buildCModule(b, &options, lib_color, &lsf_src_files, cflags.items);
     buildCli(b, "lsf", lsf, &options);
 
     // STATF
@@ -220,7 +198,7 @@ pub fn build(b: *Build) !void {
         "src/ctypes/strbuild.c",
         "src/ctypes/table.c",
     };
-    const statf = buildCModule(b, &options, lib_color, cURL, &statf_src_files, cflags.items);
+    const statf = buildCModule(b, &options, lib_color, &statf_src_files, cflags.items);
     buildCli(b, "statf", statf, &options);
 
     // TOUCHF
@@ -228,7 +206,7 @@ pub fn build(b: *Build) !void {
         "src/touch/main.c",
         "src/ctypes/table.c",
     };
-    const touchf = buildCModule(b, &options, lib_color, cURL, &touchf_src_files, cflags.items);
+    const touchf = buildCModule(b, &options, lib_color, &touchf_src_files, cflags.items);
     buildCli(b, "touchf", touchf, &options);
 
     // MVF

@@ -53,8 +53,6 @@ jobs:
         uses: mlugg/setup-zig@8d6198c65fb0feaa111df26e6b467fea8345e46f # v2.0.5
         with:
           version: 0.15.1
-      - name: 📦 Install dependencies
-        run: sudo apt-get install -y libcurl4-gnutls-dev && sudo apt-get install -y help2man
       - name: 🔧 Build
         run: zig build -Dtarget=${{ matrix.target }} ${{ matrix.zig-flags }}
 

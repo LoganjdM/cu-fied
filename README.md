@@ -10,8 +10,7 @@ First off, it is primarily designed for the x86 and ARM platforms of linux and m
 With that out of the way, you only need these dependencies:
 
 - [Zig](https://ziglang.org/) 0.15.1 or later.
-- [cURL](https://github.com/curl/curl) installed via a system package manager.
-  (Note that it is planned to statically link cURL if it is not installed globally.)
+- [help2man](https://www.gnu.org/software/help2man/) (if generating documentation)
 
 ### Helpful commands
 
