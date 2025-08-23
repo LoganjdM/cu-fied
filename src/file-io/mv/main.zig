@@ -1,5 +1,6 @@
 const std = @import("std");
 const assert = std.debug.assert;
+const fs = std.fs;
 const mem = std.mem;
 const Allocator = mem.Allocator;
 const process = std.process;
@@ -32,7 +33,7 @@ fn parseArgs(args: *ArgIterator, allocator: Allocator) error{ OutOfMemory, BadAr
     var arena = std.heap.ArenaAllocator.init(allocator);
     const aAllocator = arena.allocator();
 
-    var positionals = std.ArrayListUnmanaged([:0]const u8){};
+    var positionals: std.ArrayList([:0]const u8) = .{};
     var result: Params = .{ .arena = arena };
 
     while (args.next()) |arg| {
@@ -57,7 +58,7 @@ fn parseArgs(args: *ArgIterator, allocator: Allocator) error{ OutOfMemory, BadAr
         } else if (std.mem.eql(u8, arg, "--verbose")) {
             result.verbose = true;
         } else if (arg[0] == '-') {
-            std.log.warn("Unknown option: {?s}", .{arg});
+            std.log.warn("Unknown option: {s}", .{arg});
         } else {
             try positionals.append(aAllocator, arg);
         }
@@ -75,7 +76,7 @@ fn parseArgs(args: *ArgIterator, allocator: Allocator) error{ OutOfMemory, BadAr
     return result;
 }
 
-fn move(allocator: Allocator, args: Params) error{ OutOfMemory, OperationError }!void {
+fn move(allocator: Allocator, args: Params) (error{ OutOfMemory, OperationError } || fs.File.OpenError)!void {
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const aAllocator = arena.allocator();
@@ -92,7 +93,10 @@ fn move(allocator: Allocator, args: Params) error{ OutOfMemory, OperationError }
         const src = try aAllocator.dupeZ(u8, source);
 
         if (args.verbose) file_io.printfOperation(&dot_count, src, dest, padding_vars, "moving");
-        file_io.copy(source, dest, .{
+
+        const cwd = fs.cwd();
+
+        file_io.copy(&cwd, source, dest, .{
             .force = args.force,
             .recursive = false,
             .link = false,
@@ -119,20 +123,22 @@ pub fn main() !u8 {
     var args_iter = try std.process.argsWithAllocator(gpa);
     defer args_iter.deinit();
 
-    std.log.debug("args: {s}", .{std.os.argv});
-
     _ = args_iter.next();
     const args = try parseArgs(&args_iter, gpa);
     defer args.arena.deinit();
 
+    var stdout_buffer: [1024]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    const stdout = &stdout_writer.interface;
+
     if (args.help) {
-        try std.io.getStdOut().writer().print(@embedFile("help.txt"), .{});
+        try stdout.print(@embedFile("help.txt"), .{});
 
         return 0;
     }
 
     if (args.version) {
-        try std.io.getStdOut().writer().print(
+        try stdout.print(
             \\mvf version {s}
             \\
         , .{options.version});

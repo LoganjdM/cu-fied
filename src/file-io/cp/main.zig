@@ -1,8 +1,9 @@
 const std = @import("std");
 const assert = std.debug.assert;
-const ArrayListUnmanaged = std.ArrayListUnmanaged;
+const ArrayList = std.ArrayList;
 const log = std.log;
 const mem = std.mem;
+const Io = std.Io;
 const Allocator = mem.Allocator;
 const process = std.process;
 const ArgIterator = process.ArgIterator;
@@ -11,6 +12,7 @@ const File = fs.File;
 const builtin = @import("builtin");
 const native_os = builtin.os.tag;
 const color = @import("colors");
+const AnsiCode = color.AnsiCode;
 const file_io = @import("file_io");
 const options = @import("options");
 
@@ -24,7 +26,7 @@ const Arguments = packed struct {
 
 const Params = struct {
     arguments: *Arguments,
-    positionals: *ArrayListUnmanaged([*:0]u8),
+    positionals: *ArrayList([*:0]u8),
 };
 
 fn isArg(arg: [*:0]const u8, comptime short: []const u8, comptime long: []const u8) bool {
@@ -34,10 +36,10 @@ fn isArg(arg: [*:0]const u8, comptime short: []const u8, comptime long: []const 
 fn parseArgs(
     allocator: Allocator,
     args: *ArgIterator,
-    stdout: *const File.Writer,
-) (error{OutOfMemory} || File.WriteError)!Params {
+    stdout: *Io.Writer,
+) (error{OutOfMemory} || Io.Writer.Error)!Params {
     var arguments: Arguments = .{};
-    var positionals: ArrayListUnmanaged([*:0]u8) = .{};
+    var positionals: ArrayList([*:0]u8) = .{};
 
     while (args.next()) |arg| {
         if (arg[0] != '-') {
@@ -96,24 +98,24 @@ pub fn main() u8 {
     };
     defer if (is_debug) assert(debug_allocator.deinit() == .ok);
 
-    const stderr = std.io.getStdErr();
-    const stdout = std.io.getStdOut();
-    const stdout_writer = stdout.writer();
+    var stdout_buffer: [1024]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    const stdout = &stdout_writer.interface;
+
+    var stderr = std.fs.File.stderr();
 
     var args_iter = try std.process.argsWithAllocator(gpa);
     defer args_iter.deinit();
-
-    std.log.debug("args: {s}\n", .{std.os.argv});
 
     _ = args_iter.next();
 
     const args = parseArgs(
         gpa,
         &args_iter,
-        &stdout_writer,
+        stdout,
     ) catch |err| switch (err) {
         error.OutOfMemory => {
-            color.print(stderr, color.red, "Failed to reallocate memory for extra file arguments!\n", .{});
+            color.print(&stderr, AnsiCode.red, "Failed to reallocate memory for extra file arguments!\n", .{});
             return 1;
         },
         else => {
@@ -124,7 +126,7 @@ pub fn main() u8 {
 
     if (args.positionals.items.len < 2) {
         const msg = if (args.positionals.items.len == 0) "Missing file arguments!" else "Missing destination file argument!";
-        color.print(stderr, color.red, "{s}\n", .{msg});
+        color.print(&stderr, color.AnsiCode.red, "{s}\n", .{msg});
 
         return 2;
     }
@@ -135,7 +137,7 @@ pub fn main() u8 {
     }
 
     const dest: []u8 = gpa.dupe(u8, std.mem.span(args.positionals.pop().?)) catch {
-        color.print(stderr, color.red, "Failed to allocate memory for destination file argument!\n", .{});
+        color.print(&stderr, AnsiCode.red, "Failed to allocate memory for destination file argument!\n", .{});
         return 1;
     };
     defer gpa.free(dest);
@@ -148,7 +150,7 @@ pub fn main() u8 {
     if (args.arguments.verbose) {
         verbose_longest_operand = getLongestOperand(args.positionals.items);
         verbose_zig_padding_char = gpa.alloc(u8, verbose_longest_operand) catch {
-            color.print(stderr, color.red, "Failed to allocate memory for verbose padding char!\n", .{});
+            color.print(&stderr, AnsiCode.red, "Failed to allocate memory for verbose padding char!\n", .{});
             return 1;
         };
         @memset(verbose_zig_padding_char, '-');
@@ -160,7 +162,7 @@ pub fn main() u8 {
     for (args.positionals.items) |file_slice| {
         // these *:0 are really annoying so do it the c way of looking for \0 //
         const file: []u8 = gpa.alloc(u8, std.mem.len(file_slice)) catch {
-            color.print(stderr, color.red, "Failed to allocate memory for source file argument!\n", .{});
+            color.print(&stderr, AnsiCode.red, "Failed to allocate memory for source file argument!\n", .{});
             continue;
         };
         @memcpy(file, file_slice);
@@ -173,14 +175,16 @@ pub fn main() u8 {
             _ = std.c.printf("\"%s\" %.*s--[copying]--> \"%s\"%.*s\n", file_io.zigStrToCStr(file), padding, verbose_padding_char, file_io.zigStrToCStr(dest), dot_count, "...");
         }
 
+        const cwd = fs.cwd();
+
         // GNU source looking function call //
-        file_io.copy(file, dest, .{
+        file_io.copy(&cwd, file, dest, .{
             .recursive = args.arguments.recursive,
             .force = args.arguments.force,
             .link = args.arguments.link,
         }) catch |err| {
-            color.print(stderr, color.red, "Failed to copy file ", .{});
-            color.print(stderr, color.blue, " {s}", .{file});
+            color.print(&stderr, AnsiCode.red, "Failed to copy file ", .{});
+            color.print(&stderr, AnsiCode.blue, " {s}", .{file});
             const reason = switch (err) {
                 error.AccessDenied => "Do you have permission?",
                 error.FileNotFound => "does it exist?",
@@ -188,7 +192,7 @@ pub fn main() u8 {
                 else => "Oops",
             };
 
-            color.print(stderr, color.red, "({s})\n", .{reason});
+            color.print(&stderr, AnsiCode.red, "({s})\n", .{reason});
             continue;
         };
     }

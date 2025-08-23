@@ -11,7 +11,7 @@ Options:
 
     -l, --link              hard link files instead of copying [NOT IMPLEMENTED]
 
-    -r, --recursive         copy directories revursively [NOT IMPLEMENTED]
+    -r, --recursive         copy directories recursively [NOT IMPLEMENTED]
 
     -s, --sync              sync SOURCE and DEST or DIRECTORY to DIRECTORY, assimilar to rsync [NOT IMPLEMENTED]
 

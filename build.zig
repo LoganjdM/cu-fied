@@ -95,29 +95,9 @@ fn buildZigModule(b: *Build, options: *const SharedBuildOptions, main: LazyPath,
     return module;
 }
 
-fn zigifyLibColor(b: *Build, options: *const SharedBuildOptions, header: LazyPath, zig_module: LazyPath, color_obj: *Build.Step.Compile) *Module {
-    const translated_colors_header = b.addTranslateC(.{
-        .root_source_file = header,
-        .target = options.target,
-        .optimize = options.optimize,
-    }).createModule();
-
-    const lib_color_zig = b.addModule("colors", .{
-        .root_source_file = zig_module,
-        .target = options.target,
-        .optimize = options.optimize,
-        .link_libc = true,
-        .imports = &.{
-            .{ .name = "colors", .module = translated_colors_header },
-        },
-    });
-    lib_color_zig.addObject(color_obj);
-    return lib_color_zig;
-}
-
 pub fn build(b: *Build) !void {
     // General options
-    var cflags: std.BoundedArray([]const u8, 16) = .{};
+    var cflags: std.ArrayList([]const u8) = try .initCapacity(b.allocator, 16);
     cflags.appendSliceAssumeCapacity(&.{ "-std=c23", "-Wall", "-D_GNU_SOURCE", "-DC23" });
 
     if (b.release_mode == .off) {
@@ -173,9 +153,14 @@ pub fn build(b: *Build) !void {
     // LibColor (all programs use this) //
     const lib_color = b.addObject(.{
         .name = "libcolor",
-        .root_module = buildCModule(b, &options, null, null, &[_][]const u8{"src/libcolor/colors.c"}, cflags.constSlice()),
+        .root_module = buildCModule(b, &options, null, null, &[_][]const u8{"src/libcolor/colors.c"}, cflags.items),
     });
-    const lib_color_zig = zigifyLibColor(b, &options, b.path("src/libcolor/colors.h"), b.path("src/libcolor/colors.zig"), lib_color);
+    const lib_color_zig = b.createModule(.{
+        .root_source_file = b.path("src/libcolor/colors.zig"),
+        .target = options.target,
+        .optimize = options.optimize,
+        .link_libc = false,
+    });
 
     // cURL //
     const cURL = b.dependency("cURL", .{
@@ -191,13 +176,18 @@ pub fn build(b: *Build) !void {
     }).createModule();
 
     // Utilities
-    const file_io_module = b.addModule("file_io", .{
+    const file_io_module = b.createModule(.{
         .root_source_file = b.path("src/file-io/file-io.zig"),
         .target = target,
         .optimize = optimize,
     });
 
-    const imports: []const Module.Import = &.{ .{ .name = "options", .module = injectedOptions.createModule() }, .{ .name = "colors", .module = lib_color_zig }, .{ .name = "file_io", .module = file_io_module }, .{ .name = "zURL", .module = zURL } };
+    const imports: []const Module.Import = &.{
+        .{ .name = "options", .module = injectedOptions.createModule() },
+        .{ .name = "colors", .module = lib_color_zig },
+        .{ .name = "file_io", .module = file_io_module },
+        .{ .name = "zURL", .module = zURL },
+    };
 
     // Update versioning on the C side first. //
     const info_dir = b.addWriteFiles();
@@ -220,7 +210,7 @@ pub fn build(b: *Build) !void {
         "src/ctypes/strbuild.c",
         "src/ctypes/table.c",
     };
-    const lsf = buildCModule(b, &options, lib_color, cURL, &lsf_src_files, cflags.constSlice());
+    const lsf = buildCModule(b, &options, lib_color, cURL, &lsf_src_files, cflags.items);
     buildCli(b, "lsf", lsf, &options);
 
     // STATF
@@ -230,7 +220,7 @@ pub fn build(b: *Build) !void {
         "src/ctypes/strbuild.c",
         "src/ctypes/table.c",
     };
-    const statf = buildCModule(b, &options, lib_color, cURL, &statf_src_files, cflags.constSlice());
+    const statf = buildCModule(b, &options, lib_color, cURL, &statf_src_files, cflags.items);
     buildCli(b, "statf", statf, &options);
 
     // TOUCHF
@@ -238,7 +228,7 @@ pub fn build(b: *Build) !void {
         "src/touch/main.c",
         "src/ctypes/table.c",
     };
-    const touchf = buildCModule(b, &options, lib_color, cURL, &touchf_src_files, cflags.constSlice());
+    const touchf = buildCModule(b, &options, lib_color, cURL, &touchf_src_files, cflags.items);
     buildCli(b, "touchf", touchf, &options);
 
     // MVF

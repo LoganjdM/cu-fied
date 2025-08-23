@@ -5,7 +5,7 @@
     // This is a [Semantic Version](https://semver.org/).
     .version = "0.0.0",
 
-    .minimum_zig_version = "0.14.1",
+    .minimum_zig_version = "0.15.1",
 
     .dependencies = .{
         .cURL = .{

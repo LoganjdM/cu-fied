@@ -1,4 +1,6 @@
 const std = @import("std");
+const Io = std.Io;
+const fs = std.fs;
 const posix = std.posix;
 
 pub const OperationSettings = packed struct {
@@ -19,49 +21,26 @@ pub const OperationError = error{
     IsDir,
 };
 
-pub fn copy(src: []const u8, dest: []const u8, flags: OperationSettings) OperationError!void {
+pub fn copy(dir: *const fs.Dir, src: []const u8, dest: []const u8, flags: OperationSettings) OperationError!void {
     if (!flags.force) force: {
-        std.posix.access(dest, 0) catch |err| switch (err) {
-            error.FileNotFound => break :force, // File doesn't exist, proceed with copy
-            else => {},
+        dir.access(dest, .{}) catch |err| switch (err) {
+            error.FileNotFound => break :force, // File doesn't exist, proceed with copy.
+            else => {
+                return error.FileFound;
+            },
         };
-
-        return error.FileFound;
     }
 
-    const src_fd = std.posix.open(src, .{}, 0) catch |err| return switch (err) {
-        error.AccessDenied => error.AccessDenied,
-        error.BadPathName => error.BadPathName,
-        error.SystemResources => error.SystemResources,
-        error.DeviceBusy => error.SystemResources,
-        error.FileNotFound => error.FileNotFound,
-        // `OperationError` doesn’t have every possible error.
-        else => return error.Unexpected,
-    };
+    const source_buffer: []u8 = undefined;
+    const source_file = dir.openFile(src, .{}) catch return error.Unexpected;
+    var source_file_reader = source_file.reader(source_buffer);
 
-    // we already did error checking, and all of this should happen so fast that these next things shouldnt fail //
-    // https://ziglang.org/documentation/master/std/#std.c.Stat //
-    const src_st = posix.fstat(src_fd) catch return error.Unexpected;
+    const dest_buffer: []u8 = undefined;
+    const dest_file = dir.openFile(dest, .{}) catch return error.Unexpected;
+    const dest_file_writer = dest_file.writer(dest_buffer);
+    var dest_writer = dest_file_writer.interface;
 
-    const dest_fd = posix.open(dest, .{ .ACCMODE = .RDWR, .CREAT = true }, src_st.mode) catch |err| return switch (err) {
-        error.AccessDenied => error.AccessDenied,
-        error.BadPathName => error.BadPathName,
-        error.SystemResources => error.SystemResources,
-        error.DeviceBusy => error.SystemResources,
-        error.FileNotFound => error.FileNotFound,
-        error.FileBusy => error.FileBusy,
-        else => return error.Unexpected,
-    };
-
-    // sendfile works differently on macos and freebsd! //
-    // linux: https://www.man7.org/linux/man-pages/man2/sendfile.2.html
-    // mac: https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/sendfile.2.html
-    _ = posix.sendfile(dest_fd, src_fd, 0, @intCast(src_st.size), &[_]posix.iovec_const{}, &[_]posix.iovec_const{}, 0) catch |err| return switch (err) {
-        error.AccessDenied => error.AccessDenied,
-        error.SystemResources => error.SystemResources,
-        error.DeviceBusy => error.SystemResources,
-        else => return error.Unexpected,
-    };
+    _ = fs.File.Writer.sendFile(&dest_writer, &source_file_reader, std.Io.Limit.unlimited) catch return error.Unexpected;
 }
 
 const PaddingVars = struct {
