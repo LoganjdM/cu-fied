@@ -1,1 +1,1 @@
-exclude = ['^https://www.gnu.org/software/coreutils/$']
+exclude = ['^https://www.gnu.org/']
