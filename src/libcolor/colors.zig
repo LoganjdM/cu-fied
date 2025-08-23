@@ -47,4 +47,7 @@ pub fn print(stream: *std.fs.File, ansi: AnsiCode, comptime fmt: []const u8, va_
     nosuspend writer.print("{s}", .{getEscapeCode(ansi, stream) orelse ""}) catch return;
     nosuspend writer.print(fmt, va_args) catch return;
     nosuspend writer.print("{s}", .{getEscapeCode(AnsiCode.reset, stream) orelse ""}) catch return;
+
+    // This is the lazy way...
+    nosuspend writer.flush() catch return;
 }

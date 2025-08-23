@@ -3,6 +3,7 @@ const assert = std.debug.assert;
 const fs = std.fs;
 const mem = std.mem;
 const Allocator = mem.Allocator;
+const ArenaAllocator = std.heap.ArenaAllocator;
 const process = std.process;
 const ArgIterator = process.ArgIterator;
 const builtin = @import("builtin");
@@ -18,7 +19,7 @@ const Params = struct {
     sources: ?[]const [:0]const u8 = null,
     destination: ?[:0]const u8 = null,
 
-    arena: std.heap.ArenaAllocator,
+    arena: ArenaAllocator,
 };
 
 fn getLongestOperand(files: []const []const u8) u64 {
@@ -29,12 +30,14 @@ fn getLongestOperand(files: []const []const u8) u64 {
     return result;
 }
 
-fn parseArgs(args: *ArgIterator, allocator: Allocator) error{ OutOfMemory, BadArgs }!Params {
-    var arena = std.heap.ArenaAllocator.init(allocator);
+fn parseArgs(allocator: Allocator, args: *ArgIterator) error{ OutOfMemory, BadArgs }!Params {
+    var arena: ArenaAllocator = .init(allocator);
     const aAllocator = arena.allocator();
 
     var positionals: std.ArrayList([:0]const u8) = .{};
     var result: Params = .{ .arena = arena };
+
+    _ = args.next(); // Drop argv[0]
 
     while (args.next()) |arg| {
         if (std.mem.eql(u8, arg, "--help")) {
@@ -77,7 +80,7 @@ fn parseArgs(args: *ArgIterator, allocator: Allocator) error{ OutOfMemory, BadAr
 }
 
 fn move(allocator: Allocator, args: Params) (error{ OutOfMemory, OperationError } || fs.File.OpenError)!void {
-    var arena = std.heap.ArenaAllocator.init(allocator);
+    var arena: ArenaAllocator = .init(allocator);
     defer arena.deinit();
     const aAllocator = arena.allocator();
 
@@ -111,20 +114,19 @@ fn move(allocator: Allocator, args: Params) (error{ OutOfMemory, OperationError 
 pub fn main() !u8 {
     var debug_allocator: std.heap.DebugAllocator(.{}) = comptime .init;
 
-    const gpa, const is_debug = gpa: {
-        if (native_os == .wasi) break :gpa .{ std.heap.wasm_allocator, false };
-        break :gpa switch (builtin.mode) {
+    const allocator, const is_debug = allocator: {
+        if (native_os == .wasi) break :allocator .{ std.heap.wasm_allocator, false };
+        break :allocator switch (builtin.mode) {
             .Debug, .ReleaseSafe => .{ debug_allocator.allocator(), true },
             .ReleaseFast, .ReleaseSmall => .{ std.heap.smp_allocator, false },
         };
     };
     defer if (is_debug) assert(debug_allocator.deinit() == .ok);
 
-    var args_iter = try std.process.argsWithAllocator(gpa);
+    var args_iter = try std.process.argsWithAllocator(allocator);
     defer args_iter.deinit();
 
-    _ = args_iter.next();
-    const args = try parseArgs(&args_iter, gpa);
+    const args = try parseArgs(allocator, &args_iter);
     defer args.arena.deinit();
 
     var stdout_buffer: [1024]u8 = undefined;
@@ -133,6 +135,8 @@ pub fn main() !u8 {
 
     if (args.help) {
         try stdout.print(@embedFile("help.txt"), .{});
+
+        try stdout.flush();
 
         return 0;
     }
@@ -143,13 +147,15 @@ pub fn main() !u8 {
             \\
         , .{options.version});
 
+        try stdout.flush();
+
         return 0;
     }
 
     assert(args.sources != null);
     assert(args.destination != null);
 
-    try move(gpa, args);
+    try move(allocator, args);
 
     return 0;
 }
