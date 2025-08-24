@@ -42,7 +42,8 @@ pub fn getEscapeCode(ansi: AnsiCode, stream: *std.fs.File) ?[]const u8 {
 // https://ziglang.org/documentation/0.14.0/std/#src/std/debug.zig //
 pub fn print(stream: *std.fs.File, ansi: AnsiCode, comptime fmt: []const u8, va_args: anytype) void {
     var buffer: [1024]u8 = undefined;
-    var writer = stream.writer(&buffer).interface;
+    var stream_writer = stream.writer(&buffer);
+    var writer = &stream_writer.interface;
 
     nosuspend writer.print("{s}", .{getEscapeCode(ansi, stream) orelse ""}) catch return;
     nosuspend writer.print(fmt, va_args) catch return;
