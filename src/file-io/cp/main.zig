@@ -114,7 +114,10 @@ pub fn main() u8 {
     var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
     const stdout = &stdout_writer.interface;
 
-    var stderr = std.fs.File.stderr();
+    var stderr_buffer: [1024]u8 = undefined;
+    var stderr_file = std.fs.File.stderr();
+    var stderr_writer = stderr_file.writer(&stderr_buffer);
+    const stderr = &stderr_writer.interface;
 
     var args_iter = try std.process.argsWithAllocator(allocator);
     defer args_iter.deinit();
@@ -125,7 +128,7 @@ pub fn main() u8 {
         stdout,
     ) catch |err| switch (err) {
         error.OutOfMemory => {
-            color.print(&stderr, AnsiCode.red, "Failed to reallocate memory for extra file arguments!\n", .{});
+            color.print(&stderr_file, AnsiCode.red, "Failed to reallocate memory for extra file arguments!\n", .{});
             return 1;
         },
         else => {
@@ -136,7 +139,7 @@ pub fn main() u8 {
 
     if (args.positionals.items.len < 2) {
         const msg = if (args.positionals.items.len == 0) "Missing file arguments!" else "Missing destination file argument!";
-        color.print(&stderr, color.AnsiCode.red, "{s}\n", .{msg});
+        color.print(&stderr_file, color.AnsiCode.red, "{s}\n", .{msg});
 
         return 2;
     }
@@ -147,37 +150,18 @@ pub fn main() u8 {
     }
 
     const dest: []u8 = allocator.dupe(u8, std.mem.span(args.positionals.pop().?)) catch {
-        color.print(&stderr, AnsiCode.red, "Failed to allocate memory for destination file argument!\n", .{});
+        color.print(&stderr_file, AnsiCode.red, "Failed to allocate memory for destination file argument!\n", .{});
         return 1;
     };
     defer allocator.free(dest);
 
-    // verbose padding //
-    // kinda ugly vars //
-    var verbose_longest_operand: u64 = undefined;
-    var verbose_zig_padding_char: []u8 = undefined;
-    var verbose_padding_char: [*c]u8 = undefined;
-    if (args.arguments.verbose) {
-        verbose_longest_operand = getLongestOperand(args.positionals.items);
-        verbose_zig_padding_char = allocator.alloc(u8, verbose_longest_operand) catch {
-            color.print(&stderr, AnsiCode.red, "Failed to allocate memory for verbose padding char!\n", .{});
-            return 1;
-        };
-        @memset(verbose_zig_padding_char, '-');
-        verbose_padding_char = @ptrCast(verbose_zig_padding_char);
-    }
-    defer if (args.arguments.verbose) allocator.free(verbose_zig_padding_char);
+    const padding_vars = file_io.getPaddingVars(&.{}, allocator);
 
     var dot_count: u8 = 0;
     for (args.positionals.items) |file_pointer| {
         const file: []u8 = std.mem.span(file_pointer);
 
-        if (args.arguments.verbose) {
-            if (dot_count < 3) dot_count += 1 else dot_count -= 2;
-            const padding = (verbose_longest_operand - file.len);
-            // printf may as well be its own programming language kek //
-            _ = std.c.printf("\"%s\" %.*s--[copying]--> \"%s\"%.*s\n", file_io.zigStrToCStr(file), padding, verbose_padding_char, file_io.zigStrToCStr(dest), dot_count, "...");
-        }
+        if (args.arguments.verbose) file_io.printfOperation(stderr, &dot_count, file, dest, padding_vars, "moving");
 
         const cwd = fs.cwd();
 
@@ -187,8 +171,8 @@ pub fn main() u8 {
             .force = args.arguments.force,
             .link = args.arguments.link,
         }) catch |err| {
-            color.print(&stderr, AnsiCode.red, "Failed to copy file ", .{});
-            color.print(&stderr, AnsiCode.blue, " {s}", .{file});
+            color.print(&stderr_file, AnsiCode.red, "Failed to copy file", .{});
+            color.print(&stderr_file, AnsiCode.blue, " {s} ", .{file});
             const reason = switch (err) {
                 error.AccessDenied => "Do you have permission?",
                 error.FileNotFound => "Does it exist?",
@@ -197,7 +181,7 @@ pub fn main() u8 {
                 else => "Oops",
             };
 
-            color.print(&stderr, AnsiCode.red, "({s})\n", .{reason});
+            color.print(&stderr_file, AnsiCode.red, "({s})\n", .{reason});
             continue;
         };
     }

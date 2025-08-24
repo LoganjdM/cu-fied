@@ -1,5 +1,6 @@
 const std = @import("std");
 const assert = std.debug.assert;
+const Io = std.Io;
 const fs = std.fs;
 const mem = std.mem;
 const Allocator = mem.Allocator;
@@ -79,22 +80,18 @@ fn parseArgs(allocator: Allocator, args: *ArgIterator) error{ OutOfMemory, BadAr
     return result;
 }
 
-fn move(allocator: Allocator, args: Params) (file_io.OperationError || fs.File.OpenError)!void {
+fn move(allocator: Allocator, stderr: *Io.Writer, args: Params) (file_io.OperationError || fs.File.OpenError)!void {
     var arena: ArenaAllocator = .init(allocator);
     defer arena.deinit();
     const aAllocator = arena.allocator();
 
-    // Create null-terminated string.
-    const dest = try aAllocator.dupeZ(u8, args.destination.?);
+    const dest = args.destination.?;
 
     const padding_vars = file_io.getPaddingVars(args.sources.?, aAllocator);
 
     var dot_count: u8 = 0;
     for (args.sources.?) |source| {
-        // Create more null-terminated strings.
-        const src = try aAllocator.dupeZ(u8, source);
-
-        if (args.verbose) file_io.printfOperation(&dot_count, src, dest, padding_vars, "moving");
+        if (args.verbose) file_io.printfOperation(stderr, &dot_count, source, dest, padding_vars, "moving");
 
         const cwd = fs.cwd();
 
@@ -133,6 +130,10 @@ pub fn main() !u8 {
     var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
     const stdout = &stdout_writer.interface;
 
+    var stderr_buffer: [1024]u8 = undefined;
+    var stderr_writer = std.fs.File.stderr().writer(&stderr_buffer);
+    const stderr = &stderr_writer.interface;
+
     if (args.help) {
         try stdout.print(@embedFile("help.txt"), .{});
 
@@ -155,7 +156,7 @@ pub fn main() !u8 {
     assert(args.sources != null);
     assert(args.destination != null);
 
-    try move(allocator, args);
+    try move(allocator, stderr, args);
 
     return 0;
 }
