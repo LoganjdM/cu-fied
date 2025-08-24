@@ -45,7 +45,7 @@ fn parseArgs(
     const aAllocator = arena.allocator();
 
     var arguments: Arguments = .{};
-    var positionals: ArrayList([*:0]u8) = .{};
+    var positionals: ArrayList([*:0]u8) = .empty;
 
     _ = args.next(); // Drop argv[0]
 

@@ -34,7 +34,7 @@ fn parseArgs(allocator: Allocator, args: *ArgIterator) error{ OutOfMemory, BadAr
     var arena: ArenaAllocator = .init(allocator);
     const aAllocator = arena.allocator();
 
-    var positionals: std.ArrayList([:0]const u8) = .{};
+    var positionals: std.ArrayList([:0]const u8) = .empty;
     var result: Params = .{ .arena = arena };
 
     _ = args.next(); // Drop argv[0]
