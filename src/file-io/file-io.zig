@@ -51,13 +51,13 @@ const PaddingVars = struct {
     len: u64,
 };
 
-pub fn getPaddingVars(source_files: []const []const u8, allocator: std.mem.Allocator) error{OutOfMemory}!PaddingVars {
+pub fn getPaddingVars(source_files: []const []const u8, allocator: std.mem.Allocator) PaddingVars {
     var longest_operand: u64 = 0;
     for (source_files) |file| {
         if (file.len > longest_operand) longest_operand = file.len;
     }
 
-    const zig_padding_str = try allocator.alloc(u8, longest_operand);
+    const zig_padding_str = allocator.alloc(u8, longest_operand) catch @panic("OOM!");
     @memset(zig_padding_str, '-');
     const C_padding_str: [*c]const u8 = @ptrCast(zig_padding_str);
     return .{

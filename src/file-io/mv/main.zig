@@ -79,7 +79,7 @@ fn parseArgs(allocator: Allocator, args: *ArgIterator) error{ OutOfMemory, BadAr
     return result;
 }
 
-fn move(allocator: Allocator, args: Params) (error{ OutOfMemory, OperationError } || fs.File.OpenError)!void {
+fn move(allocator: Allocator, args: Params) (file_io.OperationError || fs.File.OpenError)!void {
     var arena: ArenaAllocator = .init(allocator);
     defer arena.deinit();
     const aAllocator = arena.allocator();
@@ -87,8 +87,7 @@ fn move(allocator: Allocator, args: Params) (error{ OutOfMemory, OperationError 
     // Create null-terminated string.
     const dest = try aAllocator.dupeZ(u8, args.destination.?);
 
-    // couldn't get struct to destruct... struct to destruct... that has a ring to it //
-    const padding_vars = try file_io.getPaddingVars(args.sources.?, aAllocator);
+    const padding_vars = file_io.getPaddingVars(args.sources.?, aAllocator);
 
     var dot_count: u8 = 0;
     for (args.sources.?) |source| {
@@ -104,10 +103,11 @@ fn move(allocator: Allocator, args: Params) (error{ OutOfMemory, OperationError 
             .recursive = false,
             .link = false,
         }) catch |err| {
-            if (err == error.FileFound) continue; // dont delete the file !! //
-            return error.OperationError;
+            if (err == error.FileFound) continue; // dont delete the file !!
+
+            return err;
         };
-        std.posix.unlink(source) catch return error.OperationError;
+        std.posix.unlink(source) catch return error.Unexpected;
     }
 }
 
