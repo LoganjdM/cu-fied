@@ -169,14 +169,8 @@ pub fn main() u8 {
     defer if (args.arguments.verbose) allocator.free(verbose_zig_padding_char);
 
     var dot_count: u8 = 0;
-    for (args.positionals.items) |file_slice| {
-        // these *:0 are really annoying so do it the c way of looking for \0 //
-        const file: []u8 = allocator.alloc(u8, std.mem.len(file_slice)) catch {
-            color.print(&stderr, AnsiCode.red, "Failed to allocate memory for source file argument!\n", .{});
-            continue;
-        };
-        @memcpy(file, file_slice);
-        defer allocator.free(file);
+    for (args.positionals.items) |file_pointer| {
+        const file: []u8 = std.mem.span(file_pointer);
 
         if (args.arguments.verbose) {
             if (dot_count < 3) dot_count += 1 else dot_count -= 2;
