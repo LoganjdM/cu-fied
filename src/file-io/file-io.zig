@@ -33,14 +33,17 @@ pub fn copy(dir: *const fs.Dir, src: []const u8, dest: []const u8, flags: Operat
 
     const source_buffer: []u8 = undefined;
     const source_file = dir.openFile(src, .{}) catch return error.Unexpected;
+    defer source_file.close();
     var source_file_reader = source_file.reader(source_buffer);
 
     const dest_buffer: []u8 = undefined;
     const dest_file = dir.createFile(dest, .{}) catch return error.Unexpected;
-    const dest_file_writer = dest_file.writer(dest_buffer);
-    var dest_writer = dest_file_writer.interface;
+    defer dest_file.close();
+    var dest_file_writer = dest_file.writer(dest_buffer);
+    var dest_writer = &dest_file_writer.interface;
 
-    _ = fs.File.Writer.sendFile(&dest_writer, &source_file_reader, std.Io.Limit.unlimited) catch return error.Unexpected;
+    _ = dest_writer.sendFileAll(&source_file_reader, Io.Limit.unlimited) catch return error.Unexpected;
+    _ = dest_writer.flush() catch return error.Unexpected;
 }
 
 const PaddingVars = struct {
@@ -63,16 +66,18 @@ pub fn getPaddingVars(source_files: []const []const u8, allocator: std.mem.Alloc
     };
 }
 
-pub fn zigStrToCStr(str: []const u8) [*c]u8 {
-    return @ptrCast(@constCast(str));
-}
-
-pub fn printfOperation(dot_count: *u8, src: []const u8, dest: []const u8, padding_vars: PaddingVars, comptime operation: []const u8) void {
+pub fn printfOperation(stderr: *Io.Writer, dot_count: *u8, src: []const u8, dest: []const u8, padding_vars: PaddingVars, comptime operation: []const u8) void {
     if (dot_count.* < 3) dot_count.* += 1 else dot_count.* -= 2;
 
-    // printf may as well be its own programming language kek //
-    _ = std.c.printf(
-        \\ "%s" %.*s--[%s]--> "%s"%.*s
-        \\
-    , zigStrToCStr(src), padding_vars.len - src.len, padding_vars.str, zigStrToCStr(operation), zigStrToCStr(dest), dot_count.*, "...");
+    // Build padding slice from the C pointer + known length.
+    const pad_len = padding_vars.len - src.len;
+    const padding_slice = padding_vars.str[0..pad_len];
+
+    // Build dots slice from the static "..." string.
+    const dots_len = dot_count.*;
+    const dots = "..."[0..dots_len];
+
+    // Format to stderr using std.fmt
+    _ = nosuspend stderr.print("\"{s}\" {s}--[{s}]--> \"{s}\"{s}\n", .{ src, padding_slice, operation, dest, dots }) catch return;
+    _ = nosuspend stderr.flush() catch return;
 }
