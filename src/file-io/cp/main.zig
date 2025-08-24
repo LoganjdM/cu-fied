@@ -191,8 +191,9 @@ pub fn main() u8 {
             color.print(&stderr, AnsiCode.blue, " {s}", .{file});
             const reason = switch (err) {
                 error.AccessDenied => "Do you have permission?",
-                error.FileNotFound => "does it exist?",
-                error.BadPathName => "is it a valid path?",
+                error.FileNotFound => "Does it exist?",
+                error.BadPathName => "Is it a valid path?",
+                error.Unexpected => "Yikes!",
                 else => "Oops",
             };
 
