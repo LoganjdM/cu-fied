@@ -36,7 +36,7 @@ pub fn copy(dir: *const fs.Dir, src: []const u8, dest: []const u8, flags: Operat
     var source_file_reader = source_file.reader(source_buffer);
 
     const dest_buffer: []u8 = undefined;
-    const dest_file = dir.openFile(dest, .{}) catch return error.Unexpected;
+    const dest_file = dir.createFile(dest, .{}) catch return error.Unexpected;
     const dest_file_writer = dest_file.writer(dest_buffer);
     var dest_writer = dest_file_writer.interface;
 
