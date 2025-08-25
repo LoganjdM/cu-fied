@@ -2,16 +2,18 @@ const std = @import("std");
 const assert = std.debug.assert;
 const ArrayList = std.ArrayList;
 const log = std.log;
-const mem = std.mem;
 const Io = std.Io;
-const Allocator = mem.Allocator;
+const mem = std.mem;
+const heap = std.heap;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const process = std.process;
-const ArgIterator = process.ArgIterator;
+const ArgIterator = std.process.ArgIterator;
 const fs = std.fs;
-const File = fs.File;
+const File = std.fs.File;
+const Allocator = mem.Allocator;
 const builtin = @import("builtin");
 const native_os = builtin.os.tag;
+
 const color = @import("colors");
 const AnsiCode = color.AnsiCode;
 const file_io = @import("file_io");
@@ -33,7 +35,7 @@ const Params = struct {
 };
 
 fn isArg(arg: [*:0]const u8, comptime short: []const u8, comptime long: []const u8) bool {
-    return std.mem.eql(u8, arg[0..short.len], short) or std.mem.eql(u8, arg[0..long.len], long);
+    return mem.eql(u8, arg[0..short.len], short) or mem.eql(u8, arg[0..long.len], long);
 }
 
 fn parseArgs(
@@ -41,7 +43,7 @@ fn parseArgs(
     args: *ArgIterator,
     stdout: *Io.Writer,
 ) (error{OutOfMemory} || Io.Writer.Error)!Params {
-    var arena: std.heap.ArenaAllocator = .init(allocator);
+    var arena: ArenaAllocator = .init(allocator);
     const aAllocator = arena.allocator();
 
     var arguments: Arguments = .{};
@@ -69,7 +71,7 @@ fn parseArgs(
             const help_message = @embedFile("help.txt");
             try stdout.print(help_message, .{});
             try stdout.flush();
-            std.process.exit(0);
+            process.exit(0);
         } else if (isArg(arg, "--version", "--version")) {
             try stdout.print(
                 \\cpf version {s}
@@ -77,7 +79,7 @@ fn parseArgs(
             , .{options.version});
             try stdout.flush();
 
-            std.process.exit(0);
+            process.exit(0);
         }
     }
 
@@ -92,34 +94,34 @@ fn parseArgs(
 fn getLongestOperand(files: [][*:0]u8) u64 {
     var result: u64 = 0;
     for (files) |fname| {
-        const flen = std.mem.len(fname);
+        const flen = mem.len(fname);
         if (flen > result) result = flen;
     }
     return result;
 }
 
 pub fn main() u8 {
-    var debug_allocator: std.heap.DebugAllocator(.{}) = comptime .init;
+    var debug_allocator: heap.DebugAllocator(.{}) = comptime .init;
 
     const allocator, const is_debug = allocator: {
-        if (native_os == .wasi) break :allocator .{ std.heap.wasm_allocator, false };
+        if (native_os == .wasi) break :allocator .{ heap.wasm_allocator, false };
         break :allocator switch (builtin.mode) {
             .Debug, .ReleaseSafe => .{ debug_allocator.allocator(), true },
-            .ReleaseFast, .ReleaseSmall => .{ std.heap.smp_allocator, false },
+            .ReleaseFast, .ReleaseSmall => .{ heap.smp_allocator, false },
         };
     };
     defer if (is_debug) assert(debug_allocator.deinit() == .ok);
 
     var stdout_buffer: [1024]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    var stdout_writer = File.stdout().writer(&stdout_buffer);
     const stdout = &stdout_writer.interface;
 
     var stderr_buffer: [1024]u8 = undefined;
-    var stderr_file = std.fs.File.stderr();
+    var stderr_file = File.stderr();
     var stderr_writer = stderr_file.writer(&stderr_buffer);
     const stderr = &stderr_writer.interface;
 
-    var args_iter = try std.process.argsWithAllocator(allocator);
+    var args_iter = try process.argsWithAllocator(allocator);
     defer args_iter.deinit();
 
     var args = parseArgs(
@@ -139,7 +141,7 @@ pub fn main() u8 {
 
     if (args.positionals.items.len < 2) {
         const msg = if (args.positionals.items.len == 0) "Missing file arguments!" else "Missing destination file argument!";
-        color.print(&stderr_file, color.AnsiCode.red, "{s}\n", .{msg});
+        color.print(&stderr_file, AnsiCode.red, "{s}\n", .{msg});
 
         return 2;
     }
@@ -149,7 +151,7 @@ pub fn main() u8 {
         log.debug("\t{s}", .{file});
     }
 
-    const dest: []u8 = allocator.dupe(u8, std.mem.span(args.positionals.pop().?)) catch {
+    const dest: []u8 = allocator.dupe(u8, mem.span(args.positionals.pop().?)) catch {
         color.print(&stderr_file, AnsiCode.red, "Failed to allocate memory for destination file argument!\n", .{});
         return 1;
     };
@@ -159,7 +161,7 @@ pub fn main() u8 {
 
     var dot_count: u8 = 0;
     for (args.positionals.items) |file_pointer| {
-        const file: []u8 = std.mem.span(file_pointer);
+        const file: []u8 = mem.span(file_pointer);
 
         if (args.arguments.verbose) file_io.printfOperation(stderr, &dot_count, file, dest, padding_vars, "moving");
 

@@ -1,16 +1,21 @@
 const std = @import("std");
 const assert = std.debug.assert;
-const Io = std.Io;
 const fs = std.fs;
+const File = std.fs.File;
+const Io = std.Io;
+const log = std.log;
 const mem = std.mem;
-const Allocator = mem.Allocator;
+const ArrayList = std.ArrayList;
+const Allocator = std.mem.Allocator;
+const heap = std.heap;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const process = std.process;
-const ArgIterator = process.ArgIterator;
+const ArgIterator = std.process.ArgIterator;
 const builtin = @import("builtin");
 const native_os = builtin.os.tag;
-const options = @import("options");
+
 const file_io = @import("file_io");
+const options = @import("options");
 
 const Params = struct {
     help: bool = false,
@@ -35,34 +40,34 @@ fn parseArgs(allocator: Allocator, args: *ArgIterator) error{ OutOfMemory, BadAr
     var arena: ArenaAllocator = .init(allocator);
     const aAllocator = arena.allocator();
 
-    var positionals: std.ArrayList([:0]const u8) = .empty;
+    var positionals: ArrayList([:0]const u8) = .empty;
     var result: Params = .{ .arena = arena };
 
     _ = args.next(); // Drop argv[0]
 
     while (args.next()) |arg| {
-        if (std.mem.eql(u8, arg, "--help")) {
+        if (mem.eql(u8, arg, "--help")) {
             result.help = true;
 
             return result;
-        } else if (std.mem.eql(u8, arg, "-h")) {
+        } else if (mem.eql(u8, arg, "-h")) {
             result.help = true;
 
             return result;
-        } else if (std.mem.eql(u8, arg, "--version")) {
+        } else if (mem.eql(u8, arg, "--version")) {
             result.version = true;
 
             return result;
-        } else if (std.mem.eql(u8, arg, "-f")) {
+        } else if (mem.eql(u8, arg, "-f")) {
             result.force = true;
-        } else if (std.mem.eql(u8, arg, "--force")) {
+        } else if (mem.eql(u8, arg, "--force")) {
             result.force = true;
-        } else if (std.mem.eql(u8, arg, "-v")) {
+        } else if (mem.eql(u8, arg, "-v")) {
             result.verbose = true;
-        } else if (std.mem.eql(u8, arg, "--verbose")) {
+        } else if (mem.eql(u8, arg, "--verbose")) {
             result.verbose = true;
         } else if (arg[0] == '-') {
-            std.log.warn("Unknown option: {s}", .{arg});
+            log.warn("Unknown option: {s}", .{arg});
         } else {
             try positionals.append(aAllocator, arg);
         }
@@ -108,29 +113,29 @@ fn move(allocator: Allocator, stderr: *Io.Writer, args: Params) (file_io.Operati
 }
 
 pub fn main() !u8 {
-    var debug_allocator: std.heap.DebugAllocator(.{}) = comptime .init;
+    var debug_allocator: heap.DebugAllocator(.{}) = comptime .init;
 
     const allocator, const is_debug = allocator: {
-        if (native_os == .wasi) break :allocator .{ std.heap.wasm_allocator, false };
+        if (native_os == .wasi) break :allocator .{ heap.wasm_allocator, false };
         break :allocator switch (builtin.mode) {
             .Debug, .ReleaseSafe => .{ debug_allocator.allocator(), true },
-            .ReleaseFast, .ReleaseSmall => .{ std.heap.smp_allocator, false },
+            .ReleaseFast, .ReleaseSmall => .{ heap.smp_allocator, false },
         };
     };
     defer if (is_debug) assert(debug_allocator.deinit() == .ok);
 
-    var args_iter = try std.process.argsWithAllocator(allocator);
+    var args_iter = try process.argsWithAllocator(allocator);
     defer args_iter.deinit();
 
     const args = try parseArgs(allocator, &args_iter);
     defer args.arena.deinit();
 
     var stdout_buffer: [1024]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    var stdout_writer = File.stdout().writer(&stdout_buffer);
     const stdout = &stdout_writer.interface;
 
     var stderr_buffer: [1024]u8 = undefined;
-    var stderr_writer = std.fs.File.stderr().writer(&stderr_buffer);
+    var stderr_writer = File.stderr().writer(&stderr_buffer);
     const stderr = &stderr_writer.interface;
 
     if (args.help) {

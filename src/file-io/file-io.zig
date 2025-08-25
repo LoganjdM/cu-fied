@@ -1,6 +1,7 @@
 const std = @import("std");
-const Io = std.Io;
+const Allocator = std.mem.Allocator;
 const fs = std.fs;
+const Io = std.Io;
 const posix = std.posix;
 
 pub const OperationSettings = packed struct {
@@ -64,7 +65,7 @@ const PaddingVars = struct {
     len: u64,
 };
 
-pub fn getPaddingVars(source_files: []const []const u8, allocator: std.mem.Allocator) PaddingVars {
+pub fn getPaddingVars(source_files: []const []const u8, allocator: Allocator) PaddingVars {
     var longest_operand: u64 = 0;
     for (source_files) |file| {
         if (file.len > longest_operand) longest_operand = file.len;

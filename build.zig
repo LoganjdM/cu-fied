@@ -1,8 +1,9 @@
 const std = @import("std");
 const Build = std.Build;
-const LazyPath = Build.LazyPath;
-const Module = Build.Module;
-const Step = Build.Step;
+const LazyPath = std.Build.LazyPath;
+const Module = std.Build.Module;
+const Step = std.Build.Step;
+const ArrayList = std.ArrayList;
 const builtin = @import("builtin");
 
 fn addBuildSteps(b: *Build, name: []const u8, exe: *Step.Compile) void {
@@ -89,7 +90,7 @@ fn buildZigModule(b: *Build, options: *const SharedBuildOptions, main: LazyPath,
 
 pub fn build(b: *Build) !void {
     // General options
-    var cflags: std.ArrayList([]const u8) = try .initCapacity(b.allocator, 16);
+    var cflags: ArrayList([]const u8) = try .initCapacity(b.allocator, 16);
     cflags.appendSliceAssumeCapacity(&.{ "-std=c23", "-Wall", "-D_GNU_SOURCE", "-DC23" });
 
     if (b.release_mode == .off) {
