@@ -46,6 +46,19 @@ pub fn copy(dir: *const fs.Dir, src: []const u8, dest: []const u8, flags: Operat
     _ = dest_writer.flush() catch return error.Unexpected;
 }
 
+pub fn move(dir: *const fs.Dir, src: []const u8, dest: []const u8, flags: OperationSettings) OperationError!void {
+    if (!flags.force) force: {
+        dir.access(dest, .{}) catch |err| switch (err) {
+            error.FileNotFound => break :force, // File doesn't exist, proceed with move.
+            else => {
+                return error.FileFound;
+            },
+        };
+    }
+
+    dir.rename(src, dest) catch return error.Unexpected;
+}
+
 const PaddingVars = struct {
     str: [*c]const u8,
     len: u64,

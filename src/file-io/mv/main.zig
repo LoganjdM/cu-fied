@@ -95,7 +95,7 @@ fn move(allocator: Allocator, stderr: *Io.Writer, args: Params) (file_io.Operati
 
         const cwd = fs.cwd();
 
-        file_io.copy(&cwd, source, dest, .{
+        file_io.move(&cwd, source, dest, .{
             .force = args.force,
             .recursive = false,
             .link = false,
@@ -104,7 +104,6 @@ fn move(allocator: Allocator, stderr: *Io.Writer, args: Params) (file_io.Operati
 
             return err;
         };
-        std.posix.unlink(source) catch return error.Unexpected;
     }
 }
 
