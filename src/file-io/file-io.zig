@@ -22,7 +22,7 @@ pub const OperationError = error{
     IsDir,
 };
 
-pub fn copy(dir: *const fs.Dir, src: []const u8, dest: []const u8, flags: OperationSettings) OperationError!void {
+pub fn copy(dir: fs.Dir, src: []const u8, dest: []const u8, flags: OperationSettings) OperationError!void {
     if (!flags.force) force: {
         dir.access(dest, .{}) catch |err| switch (err) {
             error.FileNotFound => break :force, // File doesn't exist, proceed with copy.
@@ -32,22 +32,10 @@ pub fn copy(dir: *const fs.Dir, src: []const u8, dest: []const u8, flags: Operat
         };
     }
 
-    const source_buffer: []u8 = undefined;
-    const source_file = dir.openFile(src, .{}) catch return error.Unexpected;
-    defer source_file.close();
-    var source_file_reader = source_file.reader(source_buffer);
-
-    const dest_buffer: []u8 = undefined;
-    const dest_file = dir.createFile(dest, .{}) catch return error.Unexpected;
-    defer dest_file.close();
-    var dest_file_writer = dest_file.writer(dest_buffer);
-    var dest_writer = &dest_file_writer.interface;
-
-    _ = dest_writer.sendFileAll(&source_file_reader, Io.Limit.unlimited) catch return error.Unexpected;
-    _ = dest_writer.flush() catch return error.Unexpected;
+    fs.Dir.copyFile(dir, src, dir, dest, .{}) catch return error.Unexpected;
 }
 
-pub fn move(dir: *const fs.Dir, src: []const u8, dest: []const u8, flags: OperationSettings) OperationError!void {
+pub fn move(dir: fs.Dir, src: []const u8, dest: []const u8, flags: OperationSettings) OperationError!void {
     if (!flags.force) force: {
         dir.access(dest, .{}) catch |err| switch (err) {
             error.FileNotFound => break :force, // File doesn't exist, proceed with move.

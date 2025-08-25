@@ -168,7 +168,7 @@ pub fn main() u8 {
         const cwd = fs.cwd();
 
         // GNU source looking function call //
-        file_io.copy(&cwd, file, dest, .{
+        file_io.copy(cwd, file, dest, .{
             .recursive = args.arguments.recursive,
             .force = args.arguments.force,
             .link = args.arguments.link,
