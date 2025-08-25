@@ -36,6 +36,7 @@ jobs:
           - x86_64-linux-musl
           - x86_64-macos
           - aarch64-macos
+          - x86_64-windows-gnu
 
         include:
           - target: x86_64-linux-gnu

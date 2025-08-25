@@ -4,6 +4,7 @@ const LazyPath = std.Build.LazyPath;
 const Module = std.Build.Module;
 const Step = std.Build.Step;
 const ArrayList = std.ArrayList;
+const Os = std.Target.Os;
 const builtin = @import("builtin");
 
 fn addBuildSteps(b: *Build, name: []const u8, exe: *Step.Compile) void {
@@ -181,34 +182,36 @@ pub fn build(b: *Build) !void {
 
     b.step("write-info", "Generate app_info.h").dependOn(&write_info.step);
 
-    // LSF
-    const lsf_src_files = [_][]const u8{
-        "src/ls/main.c",
-        "src/ls/print.c",
-        "src/stat/do_stat.c",
-        "src/ctypes/strbuild.c",
-        "src/ctypes/table.c",
-    };
-    const lsf = buildCModule(b, &options, lib_color, &lsf_src_files, cflags.items);
-    buildCli(b, "lsf", lsf, &options);
+    if (target.result.os.tag != std.Target.Os.Tag.windows) {
+        // LSF
+        const lsf_src_files = [_][]const u8{
+            "src/ls/main.c",
+            "src/ls/print.c",
+            "src/stat/do_stat.c",
+            "src/ctypes/strbuild.c",
+            "src/ctypes/table.c",
+        };
+        const lsf = buildCModule(b, &options, lib_color, &lsf_src_files, cflags.items);
+        buildCli(b, "lsf", lsf, &options);
 
-    // STATF
-    const statf_src_files = [_][]const u8{
-        "src/stat/main.c",
-        "src/stat/do_stat.c",
-        "src/ctypes/strbuild.c",
-        "src/ctypes/table.c",
-    };
-    const statf = buildCModule(b, &options, lib_color, &statf_src_files, cflags.items);
-    buildCli(b, "statf", statf, &options);
+        // STATF
+        const statf_src_files = [_][]const u8{
+            "src/stat/main.c",
+            "src/stat/do_stat.c",
+            "src/ctypes/strbuild.c",
+            "src/ctypes/table.c",
+        };
+        const statf = buildCModule(b, &options, lib_color, &statf_src_files, cflags.items);
+        buildCli(b, "statf", statf, &options);
 
-    // TOUCHF
-    const touchf_src_files = [_][]const u8{
-        "src/touch/main.c",
-        "src/ctypes/table.c",
-    };
-    const touchf = buildCModule(b, &options, lib_color, &touchf_src_files, cflags.items);
-    buildCli(b, "touchf", touchf, &options);
+        // TOUCHF
+        const touchf_src_files = [_][]const u8{
+            "src/touch/main.c",
+            "src/ctypes/table.c",
+        };
+        const touchf = buildCModule(b, &options, lib_color, &touchf_src_files, cflags.items);
+        buildCli(b, "touchf", touchf, &options);
+    }
 
     // MVF
     const mvf_main = b.path("src/file-io/mv/main.zig");
