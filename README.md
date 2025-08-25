@@ -5,7 +5,7 @@ Cu-fied (_pronounced /kjufaɪd/_ ) is a rewrite of [GNU's Coreutils](https://www
 
 ## Building from source
 
-First off, it is primarily designed for the x86 and ARM platforms of Linux and macOS.
+First off, it is primarily designed for the x64 and ARM platforms of Linux and macOS.
 Some of the CLIs most definitely do not work on Windows due to using `unistd.h` and specific POSIX functions; WSL and Cygwin _ought to_ work, but are not tested.
 PRs to improve to improve cross-platform compatibility are welcome.
 
