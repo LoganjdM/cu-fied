@@ -157,13 +157,14 @@ pub fn main() u8 {
     };
     defer allocator.free(dest);
 
-    const padding_vars = file_io.getPaddingVars(&.{}, allocator);
+    const padding = file_io.getPadding(&.{}, allocator) catch @panic("OOM!");
+    defer allocator.free(padding);
 
     var dot_count: u8 = 0;
     for (args.positionals.items) |file_pointer| {
         const file: []u8 = mem.span(file_pointer);
 
-        if (args.arguments.verbose) file_io.printfOperation(stderr, &dot_count, file, dest, padding_vars, "moving");
+        if (args.arguments.verbose) file_io.printfOperation(stderr, &dot_count, file, dest, padding, "copying");
 
         const cwd = fs.cwd();
 

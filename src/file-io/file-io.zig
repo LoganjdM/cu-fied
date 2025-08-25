@@ -48,32 +48,26 @@ pub fn move(dir: fs.Dir, src: []const u8, dest: []const u8, flags: OperationSett
     dir.rename(src, dest) catch return error.Unexpected;
 }
 
-const PaddingVars = struct {
-    str: [*c]const u8,
-    len: u64,
-};
-
-pub fn getPaddingVars(source_files: []const []const u8, allocator: Allocator) PaddingVars {
-    var longest_operand: u64 = 0;
+pub fn getPadding(source_files: []const []const u8, allocator: Allocator) ![]u8 {
+    var longest_operand: usize = 0;
     for (source_files) |file| {
         if (file.len > longest_operand) longest_operand = file.len;
     }
 
-    const zig_padding_str = allocator.alloc(u8, longest_operand) catch @panic("OOM!");
-    @memset(zig_padding_str, '-');
-    const C_padding_str: [*c]const u8 = @ptrCast(zig_padding_str);
-    return .{
-        .str = C_padding_str,
-        .len = longest_operand,
-    };
+    const padding_str = try allocator.alloc(u8, longest_operand);
+    // Fill the allocated buffer with '-' using @memset.
+    @memset(padding_str, '-');
+
+    return padding_str;
 }
 
-pub fn printfOperation(stderr: *Io.Writer, dot_count: *u8, src: []const u8, dest: []const u8, padding_vars: PaddingVars, comptime operation: []const u8) void {
+pub fn printfOperation(stderr: *Io.Writer, dot_count: *u8, src: []const u8, dest: []const u8, padding: []const u8, comptime operation: []const u8) void {
     if (dot_count.* < 3) dot_count.* += 1 else dot_count.* -= 2;
 
-    // Build padding slice from the C pointer + known length.
-    const pad_len = padding_vars.len - src.len;
-    const padding_slice = padding_vars.str[0..pad_len];
+    // Compute padding length safely: avoid unsigned underflow by clamping to 0
+    // when src is longer than the recorded longest operand.
+    const pad_len: usize = if (padding.len > src.len) padding.len - src.len else 0;
+    const padding_slice = padding[0..pad_len];
 
     // Build dots slice from the static "..." string.
     const dots_len = dot_count.*;

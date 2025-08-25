@@ -86,17 +86,14 @@ fn parseArgs(allocator: Allocator, args: *ArgIterator) error{ OutOfMemory, BadAr
 }
 
 fn move(allocator: Allocator, stderr: *Io.Writer, args: Params) (file_io.OperationError || fs.File.OpenError)!void {
-    var arena: ArenaAllocator = .init(allocator);
-    defer arena.deinit();
-    const aAllocator = arena.allocator();
-
     const dest = args.destination.?;
 
-    const padding_vars = file_io.getPaddingVars(args.sources.?, aAllocator);
+    const padding = file_io.getPadding(args.sources.?, allocator) catch @panic("OOM!");
+    defer allocator.free(padding);
 
     var dot_count: u8 = 0;
     for (args.sources.?) |source| {
-        if (args.verbose) file_io.printfOperation(stderr, &dot_count, source, dest, padding_vars, "moving");
+        if (args.verbose) file_io.printfOperation(stderr, &dot_count, source, dest, padding, "moving");
 
         const cwd = fs.cwd();
 
