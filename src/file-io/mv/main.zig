@@ -22,12 +22,12 @@ const Params = union(enum) {
 
     operation: OperationParams,
 
-    pub fn deinit(this: @This()) void {
+    pub fn deinit(this: @This(), allocator: Allocator) void {
         switch (this) {
             .help => {},
             .version => {},
             .operation => |opargs| {
-                opargs.allocator.free(opargs.sources);
+                allocator.free(opargs.sources);
             },
         }
     }
@@ -46,8 +46,6 @@ const OperationParams = struct {
 
     sources: [][:0]const u8,
     destination: [:0]const u8,
-
-    allocator: Allocator,
 };
 
 fn getLongestOperand(files: []const []const u8) u64 {
@@ -97,8 +95,6 @@ fn parseArgs(allocator: Allocator, args: *ArgIterator) error{ OutOfMemory, BadAr
         .arguments = result,
         .sources = try positionals.toOwnedSlice(allocator),
         .destination = dest,
-
-        .allocator = allocator,
     } };
 }
 
@@ -164,7 +160,7 @@ pub fn main() !u8 {
             process.exit(1);
         },
     };
-    defer args.deinit();
+    defer args.deinit(allocator);
 
     switch (args) {
         .help => {
