@@ -16,7 +16,7 @@ pub const AnsiCode = enum {
     reset,
 
     pub fn format(this: @This(), writer: *Io.Writer) Io.Writer.Error!void {
-        _ = try writer.write(switch (this) {
+        try writer.writeAll(switch (this) {
             .red => "\x1b[31m",
             .blue => "\x1b[34m",
             .cyan => "\x1b[36m",

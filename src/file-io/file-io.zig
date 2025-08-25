@@ -61,8 +61,7 @@ pub fn getPadding(source_files: []const []const u8, allocator: Allocator) ![]u8 
     return padding_str;
 }
 
-pub fn printfOperation(stderr: *Io.Writer, dot_count: *u8, src: []const u8, dest: []const u8, padding: []const u8, comptime operation: []const u8) void {
-    if (dot_count.* < 3) dot_count.* += 1 else dot_count.* -= 2;
+pub fn printfOperation(stderr: *Io.Writer, dot_count: u8, src: []const u8, dest: []const u8, padding: []const u8, comptime operation: []const u8) void {
 
     // Compute padding length safely: avoid unsigned underflow by clamping to 0
     // when src is longer than the recorded longest operand.
@@ -70,8 +69,7 @@ pub fn printfOperation(stderr: *Io.Writer, dot_count: *u8, src: []const u8, dest
     const padding_slice = padding[0..pad_len];
 
     // Build dots slice from the static "..." string.
-    const dots_len = dot_count.*;
-    const dots = "..."[0..dots_len];
+    const dots = "..."[0..dot_count];
 
     // Format to stderr using std.fmt
     _ = nosuspend stderr.print("\"{s}\" {s}--[{s}]--> \"{s}\"{s}\n", .{ src, padding_slice, operation, dest, dots }) catch return;

@@ -9,7 +9,7 @@ Options:
     -i, --interactive   prompt if permission is needed or DEST already exists
 
     -f, --force         lorem ipsum
-    
+
     -v, --verbose       print operations being done
 
     -h, --help          display this help message and exit

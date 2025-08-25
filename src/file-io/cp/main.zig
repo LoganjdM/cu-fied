@@ -68,9 +68,9 @@ fn parseArgs(
         } else if (isArg(arg, "-v", "--verbose")) {
             arguments.verbose = true;
         } else if (isArg(arg, "-h", "--help")) {
-            const help_message = @embedFile("help.txt");
-            try stdout.print(help_message, .{});
+            try stdout.writeAll(@embedFile("help.txt"));
             try stdout.flush();
+
             process.exit(0);
         } else if (isArg(arg, "--version", "--version")) {
             try stdout.print(
@@ -162,9 +162,11 @@ pub fn main() u8 {
 
     var dot_count: u8 = 0;
     for (args.positionals.items) |file_pointer| {
+        if (dot_count < 3) dot_count += 1 else dot_count -= 2;
+
         const file: []u8 = mem.span(file_pointer);
 
-        if (args.arguments.verbose) file_io.printfOperation(stderr, &dot_count, file, dest, padding, "copying");
+        if (args.arguments.verbose) file_io.printfOperation(stderr, dot_count, file, dest, padding, "copying");
 
         const cwd = fs.cwd();
 
