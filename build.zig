@@ -91,7 +91,7 @@ fn buildZigModule(b: *Build, options: *const SharedBuildOptions, main: LazyPath,
 
 pub fn build(b: *Build) !void {
     // General options
-    var cflags: ArrayList([]const u8) = try .initCapacity(b.allocator, 16);
+    var cflags: ArrayList([]const u8) = try .initCapacity(b.allocator, 8);
     cflags.appendSliceAssumeCapacity(&.{ "-std=c23", "-Wall", "-D_GNU_SOURCE", "-DC23" });
 
     if (b.release_mode == .off) {
