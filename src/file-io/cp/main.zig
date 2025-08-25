@@ -31,7 +31,7 @@ const Params = struct {
     arguments: Arguments,
     positionals: ArrayList([*:0]u8),
 
-    arena: ArenaAllocator,
+    arena: ArenaAllocator, // TODO: Kill this off.
 };
 
 fn isArg(arg: [*:0]const u8, comptime short: []const u8, comptime long: []const u8) bool {
@@ -121,7 +121,7 @@ pub fn main() u8 {
     var stderr_writer = stderr_file.writer(&stderr_buffer);
     const stderr = &stderr_writer.interface;
 
-    var args_iter = try process.argsWithAllocator(allocator);
+    var args_iter = process.argsWithAllocator(allocator) catch @panic("OOM!");
     defer args_iter.deinit();
 
     var args = parseArgs(
