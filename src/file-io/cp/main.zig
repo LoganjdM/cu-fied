@@ -29,9 +29,11 @@ const Arguments = packed struct {
 
 const Params = struct {
     arguments: Arguments,
-    positionals: ArrayList([*:0]u8),
+    positionals: [][*:0]u8,
 
-    arena: ArenaAllocator, // TODO: Kill this off.
+    pub fn deinit(this: @This(), allocator: Allocator) void {
+        allocator.free(this.positionals);
+    }
 };
 
 fn isArg(arg: [*:0]const u8, comptime short: []const u8, comptime long: []const u8) bool {
@@ -43,9 +45,6 @@ fn parseArgs(
     args: *ArgIterator,
     stdout: *Io.Writer,
 ) (error{OutOfMemory} || Io.Writer.Error)!Params {
-    var arena: ArenaAllocator = .init(allocator);
-    const aAllocator = arena.allocator();
-
     var arguments: Arguments = .{};
     var positionals: ArrayList([*:0]u8) = .empty;
 
@@ -53,7 +52,7 @@ fn parseArgs(
 
     while (args.next()) |arg| {
         if (arg[0] != '-') {
-            try positionals.append(aAllocator, @constCast(arg));
+            try positionals.append(allocator, @constCast(arg));
             continue;
         }
 
@@ -85,9 +84,7 @@ fn parseArgs(
 
     return Params{
         .arguments = arguments,
-        .positionals = positionals,
-
-        .arena = arena,
+        .positionals = try positionals.toOwnedSlice(allocator),
     };
 }
 
@@ -137,31 +134,31 @@ pub fn main() u8 {
             return 1;
         },
     };
-    defer args.arena.deinit();
+    defer args.deinit(allocator);
 
-    if (args.positionals.items.len < 2) {
-        const msg = if (args.positionals.items.len == 0) "Missing file arguments!" else "Missing destination file argument!";
+    if (args.positionals.len < 2) {
+        const msg = if (args.positionals.len == 0) "Missing file arguments!" else "Missing destination file argument!";
         color.print(&stderr_file, AnsiCode.red, "{s}\n", .{msg});
 
         return 2;
     }
 
     log.debug("operands:", .{});
-    for (args.positionals.items) |file| {
+    for (args.positionals) |file| {
         log.debug("\t{s}", .{file});
     }
 
-    const dest: []u8 = allocator.dupe(u8, mem.span(args.positionals.pop().?)) catch {
-        color.print(&stderr_file, AnsiCode.red, "Failed to allocate memory for destination file argument!\n", .{});
-        return 1;
-    };
-    defer allocator.free(dest);
+    var positionals = ArrayList([*:0]u8).empty;
+    positionals.appendSlice(allocator, args.positionals) catch @panic("OOM!");
+    defer positionals.deinit(allocator);
+
+    const dest: []u8 = mem.span(positionals.pop().?);
 
     const padding = file_io.getPadding(&.{}, allocator) catch @panic("OOM!");
     defer allocator.free(padding);
 
     var dot_count: u8 = 0;
-    for (args.positionals.items) |file_pointer| {
+    for (positionals.items) |file_pointer| {
         if (dot_count < 3) dot_count += 1 else dot_count -= 2;
 
         const file: []u8 = mem.span(file_pointer);
