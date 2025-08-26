@@ -32,7 +32,7 @@ pub const AnsiCode = enum {
     }
 };
 
-pub fn writeEscapeCode(ansi: AnsiCode, stream: *File, writer: *Io.Writer) void {
+pub fn writeEscapeCode(ansi: AnsiCode, stream: File, writer: *Io.Writer) void {
     if (stream.getOrEnableAnsiEscapeSupport()) {
         ansi.format(writer) catch return;
     }
@@ -40,7 +40,7 @@ pub fn writeEscapeCode(ansi: AnsiCode, stream: *File, writer: *Io.Writer) void {
 
 // based off std.debug.print() source code //
 // https://ziglang.org/documentation/0.14.0/std/#src/std/debug.zig //
-pub fn print(stream: *File, ansi: AnsiCode, comptime fmt: []const u8, va_args: anytype) void {
+pub fn print(stream: File, ansi: AnsiCode, comptime fmt: []const u8, va_args: anytype) void {
     var buffer: [1024]u8 = undefined;
     var stream_writer = stream.writer(&buffer);
     var writer = &stream_writer.interface;

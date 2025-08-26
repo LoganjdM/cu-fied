@@ -97,59 +97,9 @@ fn getLongestOperand(files: [][*:0]u8) u64 {
     return result;
 }
 
-pub fn main() u8 {
-    var debug_allocator: heap.DebugAllocator(.{}) = comptime .init;
-
-    const allocator, const is_debug = allocator: {
-        if (native_os == .wasi) break :allocator .{ heap.wasm_allocator, false };
-        break :allocator switch (builtin.mode) {
-            .Debug, .ReleaseSafe => .{ debug_allocator.allocator(), true },
-            .ReleaseFast, .ReleaseSmall => .{ heap.smp_allocator, false },
-        };
-    };
-    defer if (is_debug) assert(debug_allocator.deinit() == .ok);
-
-    var stdout_buffer: [1024]u8 = undefined;
-    var stdout_writer = File.stdout().writer(&stdout_buffer);
-    const stdout = &stdout_writer.interface;
-
-    var stderr_buffer: [1024]u8 = undefined;
-    var stderr_file = File.stderr();
-    var stderr_writer = stderr_file.writer(&stderr_buffer);
-    const stderr = &stderr_writer.interface;
-
-    var args_iter = process.argsWithAllocator(allocator) catch @panic("OOM!");
-    defer args_iter.deinit();
-
-    var args = parseArgs(
-        allocator,
-        &args_iter,
-        stdout,
-    ) catch |err| switch (err) {
-        error.OutOfMemory => {
-            color.print(&stderr_file, AnsiCode.red, "Failed to reallocate memory for extra file arguments!\n", .{});
-            return 1;
-        },
-        else => {
-            return 1;
-        },
-    };
-    defer args.deinit(allocator);
-
-    if (args.positionals.len < 2) {
-        const msg = if (args.positionals.len == 0) "Missing file arguments!" else "Missing destination file argument!";
-        color.print(&stderr_file, AnsiCode.red, "{s}\n", .{msg});
-
-        return 2;
-    }
-
-    log.debug("operands:", .{});
-    for (args.positionals) |file| {
-        log.debug("\t{s}", .{file});
-    }
-
-    var positionals = ArrayList([*:0]u8).empty;
-    positionals.appendSlice(allocator, args.positionals) catch @panic("OOM!");
+fn cp(allocator: Allocator, args: Params, stderr: *Io.Writer, stderr_file: File) !void {
+    var positionals: ArrayList([*:0]u8) = try .initCapacity(allocator, args.positionals.len);
+    positionals.appendSliceAssumeCapacity(args.positionals);
     defer positionals.deinit(allocator);
 
     const dest: []u8 = mem.span(positionals.pop().?);
@@ -173,8 +123,8 @@ pub fn main() u8 {
             .force = args.arguments.force,
             .link = args.arguments.link,
         }) catch |err| {
-            color.print(&stderr_file, AnsiCode.red, "Failed to copy file", .{});
-            color.print(&stderr_file, AnsiCode.blue, " {s} ", .{file});
+            color.print(stderr_file, AnsiCode.red, "Failed to copy file", .{});
+            color.print(stderr_file, AnsiCode.blue, " {s} ", .{file});
             const reason = switch (err) {
                 error.AccessDenied => "Do you have permission?",
                 error.FileNotFound => "Does it exist?",
@@ -183,10 +133,65 @@ pub fn main() u8 {
                 else => "Oops",
             };
 
-            color.print(&stderr_file, AnsiCode.red, "({s})\n", .{reason});
+            color.print(stderr_file, AnsiCode.red, "({s})\n", .{reason});
             continue;
         };
     }
+}
+
+pub fn main() u8 {
+    var debug_allocator: heap.DebugAllocator(.{}) = comptime .init;
+
+    const allocator, const is_debug = allocator: {
+        if (native_os == .wasi) break :allocator .{ heap.wasm_allocator, false };
+        break :allocator switch (builtin.mode) {
+            .Debug, .ReleaseSafe => .{ debug_allocator.allocator(), true },
+            .ReleaseFast, .ReleaseSmall => .{ heap.smp_allocator, false },
+        };
+    };
+    defer if (is_debug) assert(debug_allocator.deinit() == .ok);
+
+    var stdout_buffer: [1024]u8 = undefined;
+    var stdout_file = File.stdout();
+    var stdout_writer = stdout_file.writer(&stdout_buffer);
+    const stdout = &stdout_writer.interface;
+
+    var stderr_buffer: [1024]u8 = undefined;
+    var stderr_file = File.stderr();
+    var stderr_writer = stderr_file.writer(&stderr_buffer);
+    const stderr = &stderr_writer.interface;
+
+    var args_iter = process.argsWithAllocator(allocator) catch @panic("OOM!");
+    defer args_iter.deinit();
+
+    var args = parseArgs(
+        allocator,
+        &args_iter,
+        stdout,
+    ) catch |err| switch (err) {
+        error.OutOfMemory => {
+            color.print(stderr_file, AnsiCode.red, "Failed to reallocate memory for extra file arguments!\n", .{});
+            return 1;
+        },
+        else => {
+            return 1;
+        },
+    };
+    defer args.deinit(allocator);
+
+    if (args.positionals.len < 2) {
+        const msg = if (args.positionals.len == 0) "Missing file arguments!" else "Missing destination file argument!";
+        color.print(stderr_file, AnsiCode.red, "{s}\n", .{msg});
+
+        return 2;
+    }
+
+    log.debug("operands:", .{});
+    for (args.positionals) |file| {
+        log.debug("\t{s}", .{file});
+    }
+
+    cp(allocator, args, stderr, stderr_file) catch @panic("OOPS!");
 
     return 0;
 }
