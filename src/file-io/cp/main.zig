@@ -11,11 +11,11 @@ const ArgIterator = std.process.ArgIterator;
 const fs = std.fs;
 const File = std.fs.File;
 const Allocator = mem.Allocator;
+const tty = std.Io.tty;
 const builtin = @import("builtin");
 const native_os = builtin.os.tag;
 
 const color = @import("colors");
-const AnsiCode = color.AnsiCode;
 const file_io = @import("file_io");
 const options = @import("options");
 
@@ -97,7 +97,7 @@ fn getLongestOperand(files: [][*:0]u8) u64 {
     return result;
 }
 
-fn cp(allocator: Allocator, args: Params, stderr: *Io.Writer, stderr_file: File) !void {
+fn cp(allocator: Allocator, args: Params, stderr: *Io.Writer, ansiConfig: tty.Config) !void {
     var positionals: ArrayList([*:0]u8) = try .initCapacity(allocator, args.positionals.len);
     positionals.appendSliceAssumeCapacity(args.positionals);
     defer positionals.deinit(allocator);
@@ -123,8 +123,8 @@ fn cp(allocator: Allocator, args: Params, stderr: *Io.Writer, stderr_file: File)
             .force = args.arguments.force,
             .link = args.arguments.link,
         }) catch |err| {
-            color.print(stderr_file, AnsiCode.red, "Failed to copy file", .{});
-            color.print(stderr_file, AnsiCode.blue, " {s} ", .{file});
+            color.print(stderr, ansiConfig, tty.Color.red, "Failed to copy file", .{});
+            color.print(stderr, ansiConfig, tty.Color.blue, " {s} ", .{file});
             const reason = switch (err) {
                 error.AccessDenied => "Do you have permission?",
                 error.FileNotFound => "Does it exist?",
@@ -133,7 +133,7 @@ fn cp(allocator: Allocator, args: Params, stderr: *Io.Writer, stderr_file: File)
                 else => "Oops",
             };
 
-            color.print(stderr_file, AnsiCode.red, "({s})\n", .{reason});
+            color.print(stderr, ansiConfig, tty.Color.red, "({s})\n", .{reason});
             continue;
         };
     }
@@ -164,13 +164,15 @@ pub fn main() u8 {
     var args_iter = process.argsWithAllocator(allocator) catch @panic("OOM!");
     defer args_iter.deinit();
 
+    const ansiConfig = tty.Config.detect(stderr_file);
+
     var args = parseArgs(
         allocator,
         &args_iter,
         stdout,
     ) catch |err| switch (err) {
         error.OutOfMemory => {
-            color.print(stderr_file, AnsiCode.red, "Failed to reallocate memory for extra file arguments!\n", .{});
+            color.print(stderr, ansiConfig, tty.Color.red, "Failed to reallocate memory for extra file arguments!\n", .{});
             return 1;
         },
         else => {
@@ -181,7 +183,7 @@ pub fn main() u8 {
 
     if (args.positionals.len < 2) {
         const msg = if (args.positionals.len == 0) "Missing file arguments!" else "Missing destination file argument!";
-        color.print(stderr_file, AnsiCode.red, "{s}\n", .{msg});
+        color.print(stderr, ansiConfig, tty.Color.red, "{s}\n", .{msg});
 
         return 2;
     }
@@ -191,7 +193,7 @@ pub fn main() u8 {
         log.debug("\t{s}", .{file});
     }
 
-    cp(allocator, args, stderr, stderr_file) catch @panic("OOPS!");
+    cp(allocator, args, stderr, ansiConfig) catch @panic("OOPS!");
 
     return 0;
 }
