@@ -3,6 +3,7 @@
   "build_on_save_args": [
     "-Dno-bin",
     "-fincremental",
-    "--cache-dir=.zig-cache/zls"
+    "--cache-dir",
+    ".zig-cache/zls"
   ]
 }
